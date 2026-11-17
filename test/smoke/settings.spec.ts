@@ -215,6 +215,47 @@ test.describe.serial('Settings page, project row and narrow panel', () => {
     await until(popup, (p) => p === '', 'back to the side panel');
   });
 
+  test('one click selects a project, even when that click also gives the panel focus', async () => {
+    const groups = await sw.evaluate(
+      async (id) => (await chrome.tabGroups.query({ windowId: id })).map((g) => ({ id: g.id, title: g.title ?? '' })),
+      windowId,
+    );
+    const web = groups.find((g) => g.title === 'Web');
+    if (!web) throw new Error('Web group missing');
+    // The list in a window of its own, so clicking it does not change the browsing window's tabs.
+    const [panel] = await Promise.all([
+      ctx.waitForEvent('page'),
+      sw.evaluate(
+        (url) => chrome.windows.create({ url, type: 'popup', width: 380, height: 520 }),
+        `chrome-extension://${extensionId}/panel.html?windowId=${windowId}`,
+      ),
+    ]);
+    await panel.locator('#list .row').first().waitFor();
+    await panel.evaluate(({ id, groupId }) => chrome.runtime.sendMessage({ type: 'switch', windowId: id, groupId }), {
+      id: windowId,
+      groupId: web.id,
+    });
+    await until(state, (s) => onlyOpen(s, 'Web'), 'Web open first');
+
+    // What a person does after clicking in the page: the button goes down on a project, the panel
+    // gets the focus, and the button comes up a moment later. That one click must select.
+    await until(
+      async () => (await panel.locator('#list .row.current').textContent()) ?? '',
+      (text) => text.includes('Web'),
+      'the panel to show Web as the open project',
+    );
+    const target = panel.locator('#list .row', { hasText: 'Admin' }).locator('.main');
+    const box = await until(() => target.boundingBox(), (b) => b !== null, 'the Admin row on screen');
+    if (!box) throw new Error('no Admin row');
+    await panel.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await panel.mouse.down();
+    await panel.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await panel.waitForTimeout(150);
+    await panel.mouse.up();
+    await until(state, (s) => onlyOpen(s, 'Admin'), 'Admin open after one click', 3000);
+    await panel.close();
+  });
+
   test('a narrow side panel fits: names end with "...", extras hide, New project stays at the bottom', async () => {
     const narrow = await ctx.newPage();
     await narrow.setViewportSize({ width: 160, height: 200 });

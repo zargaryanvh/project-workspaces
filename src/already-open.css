@@ -92,6 +92,7 @@ button.big {
 .dot {
   width: 11px;
   height: 11px;
+  margin: 0 2.5px; /* 16px, like an emoji in the same place */
   border-radius: 50%;
   background: var(--dot);
   flex: none;

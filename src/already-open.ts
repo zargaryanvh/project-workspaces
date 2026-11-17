@@ -10,7 +10,7 @@ import { hostKey, urlHost } from './lib/rules.js';
 import { isGroupColor } from './lib/sanitize.js';
 import type { GroupColor } from './lib/types.js';
 import { NO_GROUP } from './lib/types.js';
-import { h } from './ui.js';
+import { h, projectLabel } from './ui.js';
 
 const url = new URLSearchParams(location.search).get('u') ?? '';
 const host = hostKey(url);
@@ -91,8 +91,14 @@ function goTo(tab: OpenTab): void {
   void send({ type: 'goToTab', tabId: tab.id, ...(selfId !== undefined ? { closeTabId: selfId } : {}) }).catch(showError);
 }
 
+/** What the page shows, as a string: it is redrawn only when that changes. */
+let lastKey = '';
+
 async function render(): Promise<void> {
   const tabs = await openTabs();
+  const key = JSON.stringify(tabs);
+  if (key === lastKey) return; // keep the same buttons, so a click in progress still lands
+  lastKey = key;
   best = tabs[0];
   const exact = tabs.some((t) => t.exact);
   titleEl.textContent = exact ? 'This page is already open' : `${hostname} is already open`;
@@ -129,8 +135,8 @@ async function render(): Promise<void> {
           h(
             'span',
             { class: 'project', 'data-color': tab.color },
-            h('span', { class: 'dot', 'aria-hidden': 'true' }),
-            h('span', { class: 'project-name' }, tab.project),
+            projectLabel(tab.project).icon,
+            h('span', { class: 'project-name' }, projectLabel(tab.project).name),
           ),
           h('span', { class: 'tab-title' }, tab.title),
           h('span', { class: 'tab-url' }, shortUrl(tab.url)),
@@ -157,7 +163,25 @@ async function main(): Promise<void> {
   anywayBtn.addEventListener('click', openAnyway);
   await render();
   closeBtn.focus();
-  const again = () => void render().catch(showError);
+  // Another tab changing (a title, an address) must not redraw the list under a click.
+  let pointerDown = false;
+  let waiting = false;
+  const release = () =>
+    setTimeout(() => {
+      pointerDown = false;
+      if (waiting) {
+        waiting = false;
+        void render().catch(showError);
+      }
+    }, 0);
+  document.addEventListener('pointerdown', () => (pointerDown = true), true);
+  document.addEventListener('pointerup', release, true);
+  document.addEventListener('pointercancel', release, true);
+  window.addEventListener('blur', release);
+  const again = () => {
+    if (pointerDown) waiting = true;
+    else void render().catch(showError);
+  };
   chrome.tabs.onRemoved.addListener(again);
   chrome.tabs.onUpdated.addListener((_id, change) => {
     if (change.url !== undefined || change.title !== undefined || change.groupId !== undefined) again();

@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Settings page and README: how to put the list on the left (with pictures), and how to get a narrow project list with Brave's vertical tabs.
+- A project name that starts with an emoji (like "🔵 Admin") shows it once, in the colour dot's place, instead of a dot and the emoji.
+- One click selects a project, even when that click also gives the side panel focus. Before, the panel redrew its list on focus and the first click was lost. The "already open" page got the same protection.
 
 ## 0.2.0 (2026-11-18)
 

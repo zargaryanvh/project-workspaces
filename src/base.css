@@ -68,6 +68,23 @@
   box-sizing: border-box;
 }
 
+/* A name that starts with an emoji ("🔵 Admin") shows it in the colour dot's place. */
+.dot.emoji {
+  width: 16px;
+  height: auto;
+  margin: 0;
+  background: none;
+  border-radius: 0;
+  font-size: 13px;
+  line-height: 1;
+  text-align: center;
+}
+
+/* Settings cards: the name field already shows the emoji, so the dot keeps its space but steps aside. */
+.dot.covered {
+  visibility: hidden;
+}
+
 html,
 body {
   margin: 0;

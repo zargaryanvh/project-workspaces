@@ -17,6 +17,23 @@ export function isStagingTitle(title: string): boolean {
   return cleanTitle(title).startsWith(STAGING_MARK);
 }
 
+/** One emoji at the start of a name, with any skin tone, variation selector or joined parts, then spaces. */
+const LEADING_EMOJI = /^(\p{Extended_Pictographic}(?:\p{Emoji_Modifier}|️)?(?:‍\p{Extended_Pictographic}(?:\p{Emoji_Modifier}|️)?)*)\s*/u;
+
+/**
+ * A name that starts with an emoji ("🔵 Admin", "🟠 App staging") uses it as
+ * its icon: lists show the emoji in place of the colour dot, and the rest as
+ * the name, so the circle is not shown twice. Null when there is no leading
+ * emoji, or when the emoji is the whole name.
+ */
+export function leadingEmoji(title: string): { icon: string; rest: string } | null {
+  const clean = cleanTitle(title);
+  const match = LEADING_EMOJI.exec(clean);
+  if (!match?.[1]) return null;
+  const rest = clean.slice(match[0].length);
+  return rest ? { icon: match[1], rest } : null;
+}
+
 /** Adds or removes the staging mark: "App staging" <-> "🟠 App staging". */
 export function withStagingMark(title: string, staging: boolean): string {
   const bare = cleanTitle(title).replace(/^\u{1F7E0}\s*/u, '');

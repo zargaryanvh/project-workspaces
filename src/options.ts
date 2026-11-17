@@ -7,7 +7,7 @@ import { attachCombo, type ComboOption } from './combo.js';
 import { cardsFromRules, rulesFromCards, type AddressRow, type ProjectCard } from './lib/ruleGroups.js';
 import { normalizeRuleHost } from './lib/rules.js';
 import { isGroupColor, sanitizeProjects, sanitizeRules, sanitizeSettings } from './lib/sanitize.js';
-import { cleanTitle, defaultColorFor, projectKey } from './lib/titles.js';
+import { cleanTitle, defaultColorFor, leadingEmoji, projectKey } from './lib/titles.js';
 import type { GroupColor, Rule, Settings, StoredProject, Surface } from './lib/types.js';
 import { h } from './ui.js';
 
@@ -290,7 +290,11 @@ function refresh(): void {
   }
   for (const card of cards) {
     const dot = cardsEl.querySelector<HTMLElement>(`[data-dot="${card.id}"]`);
-    if (dot) dot.dataset.color = knownColor(card.project);
+    if (dot) {
+      dot.dataset.color = knownColor(card.project);
+      // The name field already shows a leading emoji ("🔵 Admin"): one circle is enough.
+      dot.classList.toggle('covered', leadingEmoji(card.project) !== null);
+    }
     const status = cardsEl.querySelector<HTMLElement>(`[data-status="${card.id}"]`);
     if (status) {
       const name = cleanTitle(card.project);

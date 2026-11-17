@@ -1,5 +1,5 @@
 import type { GroupColor } from './lib/types.js';
-import { h } from './ui.js';
+import { h, projectLabel } from './ui.js';
 
 /**
  * A text field with a dropdown of choices. The list opens right under the
@@ -73,8 +73,8 @@ export function attachCombo(
                   pick(option.label);
                 },
               },
-              h('span', { class: 'dot', 'aria-hidden': 'true' }),
-              h('span', { class: 'combo-label' }, option.label),
+              projectLabel(option.label).icon,
+              h('span', { class: 'combo-label' }, projectLabel(option.label).name),
               option.note ? h('span', { class: 'combo-note' }, option.note) : null,
             ),
           )

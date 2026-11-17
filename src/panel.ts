@@ -14,7 +14,7 @@ import { send } from './lib/messages.js';
 import { sanitizeRules } from './lib/sanitize.js';
 import { cleanTitle, isStagingTitle, projectKey, withStagingMark } from './lib/titles.js';
 import { GROUP_COLORS, type GroupColor, type Rule } from './lib/types.js';
-import { COLOR_NAMES, h, keepFocus, plural } from './ui.js';
+import { COLOR_NAMES, h, keepFocus, plural, projectLabel } from './ui.js';
 
 const params = new URLSearchParams(location.search);
 const rowView = params.get('view') === 'row';
@@ -68,7 +68,7 @@ async function refresh(): Promise<void> {
     data.selected = highlighted.filter((t) => !t.pinned).length;
     data.loaded = true;
     if (ui.menuFor !== null && !data.items.some((i) => i.groupId === ui.menuFor)) closeMenu();
-    render();
+    renderFromOutside();
   } catch (err) {
     showError(err);
   }
@@ -76,9 +76,57 @@ async function refresh(): Promise<void> {
 
 async function refreshShortcuts(): Promise<void> {
   const commands = await chrome.commands.getAll();
-  data.shortcuts = new Map(
+  const next = new Map(
     commands.flatMap((c) => (c.name && c.shortcut ? [[c.name, c.shortcut] as [string, string]] : [])),
   );
+  const same = next.size === data.shortcuts.size && [...next].every(([name, key]) => data.shortcuts.get(name) === key);
+  if (same) return; // the panel got focus and nothing changed: leave the rows as they are
+  data.shortcuts = next;
+  renderFromOutside();
+}
+
+// ---------------------------------------------------------------- never redraw under a click
+
+/**
+ * A click is a press and a release on the same element. If the rows are drawn
+ * again in between, the release lands on a new element and the browser drops
+ * the click. That happened when a click also gave the panel focus: the focus
+ * redrew the list and the first click was lost. So updates that come from
+ * outside (tabs, groups, the panel getting focus) wait while a button is down.
+ */
+let pointerDown = false;
+let renderWaiting = false;
+let pointerSafety: ReturnType<typeof setTimeout> | undefined;
+
+function releasePointer(): void {
+  if (pointerSafety !== undefined) clearTimeout(pointerSafety);
+  setTimeout(() => {
+    pointerDown = false;
+    if (renderWaiting) {
+      renderWaiting = false;
+      render();
+    }
+  }, 0);
+}
+
+document.addEventListener(
+  'pointerdown',
+  () => {
+    pointerDown = true;
+    if (pointerSafety !== undefined) clearTimeout(pointerSafety);
+    pointerSafety = setTimeout(releasePointer, 3000); // released outside the panel: do not wait forever
+  },
+  true,
+);
+document.addEventListener('pointerup', releasePointer, true);
+document.addEventListener('pointercancel', releasePointer, true);
+window.addEventListener('blur', releasePointer);
+
+function renderFromOutside(): void {
+  if (pointerDown) {
+    renderWaiting = true;
+    return;
+  }
   render();
 }
 
@@ -210,8 +258,16 @@ function displayName(item: ListItem): string {
   return item.title || 'Untitled group';
 }
 
+/** What the rows show, as a string: they are rebuilt only when it changes. */
+let listKey = '';
+let createKey = '';
+
 /** The project row: labels like Brave's group labels, in tab bar order. */
 function renderRow(): void {
+  emptyEl.hidden = !data.loaded || data.items.length > 0;
+  const key = JSON.stringify(['row', data.items]);
+  if (key === listKey) return;
+  listKey = key;
   listEl.replaceChildren(
     ...data.items.map((item) =>
       h(
@@ -233,26 +289,37 @@ function renderRow(): void {
       ),
     ),
   );
-  emptyEl.hidden = !data.loaded || data.items.length > 0;
 }
 
 function renderList(): void {
+  emptyEl.hidden = !data.loaded || data.items.length > 0;
   if (ui.dragGroupId !== null) {
     ui.listWaiting = true; // redrawing now would cancel the drag
     return;
   }
   ui.listWaiting = false;
+  const deletingKey = ui.deleting ? data.items.find((i) => i.groupId === ui.deleting?.groupId)?.key : undefined;
+  const key = JSON.stringify([
+    data.items,
+    ui.menuFor,
+    ui.renaming,
+    ui.deleting,
+    data.items.map((i) => (i.number !== null ? (data.shortcuts.get(`project-${i.number}`) ?? '') : '')),
+    deletingKey ? data.rules.filter((r) => projectKey(r.project) === deletingKey).length : 0,
+  ]);
+  if (key === listKey) return; // nothing to show differently: keep the same elements
+  listKey = key;
   const rows: HTMLLIElement[] = [];
   data.items.forEach((item, index) => {
     rows.push(renderItem(item));
     if (ui.menuFor === item.groupId) rows.push(renderMenu(item, index));
   });
   listEl.replaceChildren(...rows);
-  emptyEl.hidden = !data.loaded || data.items.length > 0;
 }
 
 function renderItem(item: ListItem): HTMLLIElement {
   const name = displayName(item);
+  const label = projectLabel(name); // "🔵 Admin" shows its circle once, in the dot's place
   const tabs = plural(item.tabCount, 'tab', 'tabs');
   const shortcut = item.number !== null ? data.shortcuts.get(`project-${item.number}`) : undefined;
   const classes = ['row', item.current && 'current', ui.menuFor === item.groupId && 'menu-open'].filter(Boolean);
@@ -281,8 +348,8 @@ function renderItem(item: ListItem): HTMLLIElement {
         'aria-current': item.current ? 'true' : undefined,
         onclick: () => void switchTo(item),
       },
-      h('span', { class: 'dot', 'aria-hidden': 'true' }),
-      h('span', { class: item.title ? 'name' : 'name untitled' }, name),
+      label.icon,
+      h('span', { class: item.title ? 'name' : 'name untitled' }, label.name),
       shortcut ? h('span', { class: 'key' }, shortcut) : null,
       h('span', { class: 'count', 'aria-label': tabs }, item.tabCount),
     ),
@@ -477,6 +544,9 @@ function renderDelete(item: ListItem, state: { groupId: number; removeRules: boo
 function renderCreate(): void {
   const count = Math.max(1, data.selected);
   const state = ui.creating;
+  const key = JSON.stringify([state, count]);
+  if (key === createKey) return; // unchanged: keep the button under the pointer as it is
+  createKey = key;
   if (!state) {
     createEl.replaceChildren(
       h(

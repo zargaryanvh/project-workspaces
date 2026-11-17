@@ -238,6 +238,7 @@ code {
 .dot {
   width: 12px;
   height: 12px;
+  margin: 0 2px; /* 16px, like an emoji in the same place */
   border-radius: 50%;
   background: var(--dot, var(--g-grey));
   flex: none;

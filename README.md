@@ -47,6 +47,7 @@ Private by design: no network requests, no analytics, no code from outside. See 
 - **"Already open" warning:** open a project address in a new tab while that site is already open, and the new tab offers to take you to the tab you have (or open it anyway).
 - **Reopened windows** (Ctrl+Shift+T) and browser restarts get back the project that was open, on the tab you used last.
 - **Staging projects:** a name that starts with 🟠 gets the orange group colour.
+- **Your own icons:** a name that starts with an emoji ("🔵 Admin", "🛒 Shopping") shows that emoji in the list instead of the colour dot.
 - **Hands off your tabs:** it never reloads tabs or puts them to sleep. It closes a tab only when you click "Close this tab" on the warning.
 - **Works with Brave's vertical tabs:** each project becomes one row there, as narrow as you like.
 

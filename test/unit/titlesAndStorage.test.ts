@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { DEFAULT_SETTINGS, sanitizeLocal, sanitizeRules } from '../../src/lib/sanitize.js';
-import { cleanTitle, defaultColorFor, isStagingTitle, projectKey, withStagingMark } from '../../src/lib/titles.js';
+import { cleanTitle, defaultColorFor, isStagingTitle, leadingEmoji, projectKey, withStagingMark } from '../../src/lib/titles.js';
 
 test.describe('titles', () => {
   test('keys ignore case and extra spaces', () => {
@@ -14,6 +14,19 @@ test.describe('titles', () => {
     expect(withStagingMark('🟠App staging', false)).toBe('App staging');
     expect(isStagingTitle('🟠 Web staging')).toBe(true);
     expect(isStagingTitle('Web staging')).toBe(false);
+  });
+
+  test('a leading emoji becomes the icon, so lists show it once', () => {
+    expect(leadingEmoji('🔵 Admin')).toEqual({ icon: '🔵', rest: 'Admin' });
+    expect(leadingEmoji('  🟠   App   staging ')).toEqual({ icon: '🟠', rest: 'App staging' });
+    expect(leadingEmoji('🟠App staging')).toEqual({ icon: '🟠', rest: 'App staging' });
+    expect(leadingEmoji('❤️ Family')).toEqual({ icon: '❤️', rest: 'Family' });
+    expect(leadingEmoji('👩‍💻 Code')).toEqual({ icon: '👩‍💻', rest: 'Code' });
+    expect(leadingEmoji('👍🏽 Reviews')).toEqual({ icon: '👍🏽', rest: 'Reviews' });
+    expect(leadingEmoji('Docs')).toBeNull();
+    expect(leadingEmoji('Docs 🔵')).toBeNull(); // only at the start
+    expect(leadingEmoji('🔵')).toBeNull(); // the emoji is the whole name: keep it as the name
+    expect(leadingEmoji('')).toBeNull();
   });
 
   test('staging gets orange; other projects get a steady colour that is never orange or grey', () => {

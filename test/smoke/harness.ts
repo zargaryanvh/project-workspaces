@@ -312,7 +312,8 @@ export function panelRows(driver: Page): Promise<PanelRow[] | null> {
     const view = chrome.extension.getViews().find((w) => w.location.pathname.endsWith('/panel.html'));
     if (!view) return null;
     return [...view.document.querySelectorAll<HTMLElement>('#list .row')].map((row) => ({
-      title: row.querySelector('.name')?.textContent ?? '',
+      // The name as the owner wrote it: a leading emoji shows in the dot's place.
+      title: [row.querySelector('.dot.emoji')?.textContent, row.querySelector('.name')?.textContent].filter(Boolean).join(' '),
       count: Number(row.querySelector('.count')?.textContent ?? '0'),
       current: row.classList.contains('current'),
       shortcut: row.querySelector('.key')?.textContent ?? '',
@@ -342,7 +343,9 @@ export function panelClick(driver: Page, target: PanelTarget): Promise<void> {
       if (!view) return null;
       const doc = view.document;
       const row = (title: string) =>
-        [...doc.querySelectorAll<HTMLElement>('#list .row')].find((r) => r.querySelector('.name')?.textContent === title);
+        [...doc.querySelectorAll<HTMLElement>('#list .row')].find(
+          (r) => [r.querySelector('.dot.emoji')?.textContent, r.querySelector('.name')?.textContent].filter(Boolean).join(' ') === title,
+        );
       switch (target.kind) {
         case 'project':
           return row(target.title)?.querySelector<HTMLElement>('.main') ?? null;

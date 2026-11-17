@@ -1,3 +1,4 @@
+import { leadingEmoji } from './lib/titles.js';
 import type { GroupColor } from './lib/types.js';
 
 /** Tiny DOM helper. Text always goes in as text nodes, never as HTML. */
@@ -64,6 +65,20 @@ export function keepFocus(draw: () => void): void {
   if (!again) return;
   again.focus();
   if (start !== null && end !== null) again.setSelectionRange(start, end);
+}
+
+/**
+ * The icon slot and the name of a project, for lists: a leading emoji in the
+ * name takes the place of the colour dot (and is not repeated in the name).
+ */
+export function projectLabel(
+  title: string,
+  dotClass = 'dot',
+): { icon: HTMLSpanElement; name: string } {
+  const lead = leadingEmoji(title);
+  return lead
+    ? { icon: h('span', { class: `${dotClass} emoji`, 'aria-hidden': 'true' }, lead.icon), name: lead.rest }
+    : { icon: h('span', { class: dotClass, 'aria-hidden': 'true' }), name: title };
 }
 
 export function plural(n: number, one: string, many: string): string {
