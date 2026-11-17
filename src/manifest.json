@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Project workspaces",
+  "short_name": "Workspaces",
+  "version": "0.1.0",
+  "description": "One tab group per project. Show one project at a time: the other groups fold. Warns about tabs already open. Private: no network, no analytics.",
+  "minimum_chrome_version": "116",
+  "permissions": ["tabs", "tabGroups", "storage", "sidePanel"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "action": {
+    "default_title": "Project workspaces",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "commands": {
+    "_execute_action": { "description": "Toolbar button (side panel or project row)" },
+    "open-project-row": { "description": "Open the project row" },
+    "project-1": { "suggested_key": { "default": "Alt+1" }, "description": "Project 1" },
+    "project-2": { "suggested_key": { "default": "Alt+2" }, "description": "Project 2" },
+    "project-3": { "suggested_key": { "default": "Alt+3" }, "description": "Project 3" },
+    "project-4": { "suggested_key": { "default": "Alt+4" }, "description": "Project 4" },
+    "project-5": { "description": "Project 5" },
+    "project-6": { "description": "Project 6" },
+    "project-7": { "description": "Project 7" },
+    "project-8": { "description": "Project 8" },
+    "project-9": { "description": "Project 9" },
+    "next-project": { "description": "Next project" },
+    "previous-project": { "description": "Previous project" }
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; connect-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'"
+  }
+}

@@ -1,0 +1,144 @@
+@import url('base.css');
+
+body {
+  min-height: 100vh;
+  display: grid;
+  place-items: start center;
+  padding: 12vh 16px 32px;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 580px;
+  display: grid;
+  gap: 14px;
+}
+
+h1 {
+  font-size: 24px;
+  line-height: 1.25;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+h2 {
+  font-size: 14px;
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+.address {
+  margin: 0;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+button.big {
+  min-height: 48px;
+  min-width: 260px;
+  padding: 10px 26px;
+  font-size: 16px;
+  border-radius: 10px;
+}
+
+.where {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.tabs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.tab {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 150px) minmax(0, 1fr) auto;
+  grid-template-areas:
+    'project title same'
+    'project url same';
+  align-items: center;
+  gap: 2px 12px;
+  padding: 9px 12px;
+  text-align: left;
+  border-radius: 10px;
+}
+
+.project {
+  grid-area: project;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--dot);
+  flex: none;
+}
+
+.project-name,
+.tab-title,
+.tab-url {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-title {
+  grid-area: title;
+}
+
+.tab-url {
+  grid-area: url;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.same {
+  grid-area: same;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.error {
+  margin: 0;
+  color: var(--danger);
+}
+
+@media (max-width: 480px) {
+  button.big {
+    min-width: 0;
+    width: 100%;
+  }
+  .tab {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'project same'
+      'title same'
+      'url same';
+  }
+}

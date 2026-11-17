@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "Workspaces test helper",
+  "version": "1.0",
+  "description": "Test-only helper: lets the smoke test reopen a closed window the way Ctrl+Shift+T does. Never load it in a real profile.",
+  "permissions": ["sessions", "tabs", "tabGroups"],
+  "background": { "service_worker": "helper.js" }
+}

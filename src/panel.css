@@ -1,0 +1,436 @@
+@import url('base.css');
+
+/* ---------------------------------------------------------------- side panel: header, scrolling list, fixed footer */
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 8px 8px;
+}
+
+.top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 0 2px 8px 6px;
+}
+
+h1 {
+  font-size: 15px;
+  margin: 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+h2 {
+  font-size: 13px;
+  margin: 0;
+}
+
+.icon-button {
+  flex: none;
+  border: 0;
+  background: none;
+  width: 30px;
+  height: 30px;
+  padding: 5px;
+  color: var(--muted);
+}
+
+.icon-button svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  display: block;
+}
+
+.error {
+  flex: none;
+  margin: 0 0 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+.foot {
+  flex: none;
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+}
+
+.shortcuts {
+  justify-self: center;
+}
+
+/* ---------------------------------------------------------------- rows */
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+  border-radius: 8px;
+  margin: 1px 0;
+}
+
+.grip {
+  flex: none;
+  width: 14px;
+  margin: 0 1px 0 2px;
+  cursor: grab;
+  opacity: 0.35;
+  background-image: radial-gradient(circle, var(--fg) 1.25px, transparent 1.55px);
+  background-size: 7px 6px;
+  background-position: 0 center;
+  background-repeat: repeat;
+  mask-image: linear-gradient(transparent 30%, #000 30%, #000 70%, transparent 70%);
+}
+
+.row:hover .grip {
+  opacity: 0.8;
+}
+
+.grip:active {
+  cursor: grabbing;
+}
+
+.row .main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px 7px 8px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+}
+
+.row .main:hover {
+  background: var(--hover);
+}
+
+.row.current .main {
+  background: var(--current);
+  font-weight: 600;
+}
+
+.row.current::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--dot);
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--dot);
+  flex: none;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.name.untitled {
+  font-style: italic;
+  color: var(--muted);
+}
+
+.key {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.count {
+  flex: none;
+  min-width: 24px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--line);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.row .more {
+  flex: none;
+  width: 28px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.4;
+}
+
+.row:hover .more,
+.row .more:focus-visible,
+.row.menu-open .more {
+  opacity: 1;
+}
+
+.row.dragging {
+  opacity: 0.5;
+}
+
+.row.drop-before {
+  box-shadow: 0 -2px 0 var(--accent);
+}
+
+.row.drop-after {
+  box-shadow: 0 2px 0 var(--accent);
+}
+
+.menu {
+  margin: 2px 0 8px 22px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--dot);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+}
+
+.menu-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.confirm {
+  margin: 0;
+}
+
+.empty {
+  color: var(--muted);
+  margin: 4px 6px 12px;
+}
+
+/* ---------------------------------------------------------------- new project (in the footer) */
+
+.create {
+  display: grid;
+  gap: 10px;
+}
+
+.create:has(input) {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.create .new {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  border-style: dashed;
+  padding: 7px 10px;
+}
+
+.create .plus {
+  flex: none;
+  font-size: 18px;
+  line-height: 1;
+  width: 14px;
+  text-align: center;
+  color: var(--accent);
+}
+
+.new-text {
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.new-text small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---------------------------------------------------------------- narrow panels: less detail, names end with ... */
+
+@media (max-width: 290px) {
+  .key {
+    display: none;
+  }
+}
+
+@media (max-width: 230px) {
+  .count {
+    display: none;
+  }
+  .app {
+    padding: 8px 4px 6px;
+  }
+  .row .main {
+    gap: 7px;
+    padding-right: 4px;
+  }
+  .menu {
+    margin-left: 4px;
+  }
+  .new-text small {
+    display: none;
+  }
+}
+
+@media (max-width: 170px) {
+  .grip {
+    display: none;
+  }
+  .row.current::before {
+    left: 1px;
+  }
+  .row .more {
+    width: 22px;
+  }
+  .create .new {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+}
+
+/* ---------------------------------------------------------------- the project row (top, under the toolbar button) */
+
+body.row-view {
+  overflow: auto;
+  width: max-content;
+  min-width: 260px;
+  max-width: 760px;
+}
+
+body.row-view .app {
+  height: auto;
+  padding: 10px;
+}
+
+body.row-view .top,
+body.row-view .foot {
+  display: none;
+}
+
+body.row-view .scroll {
+  overflow: visible;
+  margin: 0;
+  padding: 0;
+}
+
+body.row-view .list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  --chip-fg: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  min-height: 28px;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--dot);
+  color: var(--chip-fg);
+  font-weight: 600;
+}
+
+.chip:hover:not(:disabled) {
+  background: var(--dot);
+  filter: brightness(1.08);
+}
+
+.chip[data-color='yellow'] {
+  --chip-fg: #202124; /* white on yellow is hard to read */
+}
+
+@media (prefers-color-scheme: dark) {
+  .chip {
+    --chip-fg: #202124;
+  }
+}
+
+.chip.current {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--fg);
+}
+
+.chip-number {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+.chip-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

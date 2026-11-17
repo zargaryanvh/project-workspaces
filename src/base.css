@@ -1,0 +1,206 @@
+/* Shared colours and controls for the list page and the options page. */
+
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #5f6368;
+  --line: #e2e5e9;
+  --hover: #f1f3f4;
+  --current: #e8f0fe;
+  --accent: #1a73e8;
+  --accent-fg: #ffffff;
+  --danger: #c5221f;
+  --danger-fg: #ffffff;
+  --ok: #188038;
+
+  /* Tab group colours, as Brave draws them. */
+  --g-grey: #5f6368;
+  --g-blue: #1a73e8;
+  --g-red: #d93025;
+  --g-yellow: #f9ab00;
+  --g-green: #1e8e3e;
+  --g-pink: #d01884;
+  --g-purple: #9334e6;
+  --g-cyan: #007b83;
+  --g-orange: #fa903e;
+
+  font: 13px/1.45 system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #202124;
+    --fg: #e8eaed;
+    --muted: #9aa0a6;
+    --line: #3c4043;
+    --hover: #2c2d30;
+    --current: #33405a;
+    --accent: #8ab4f8;
+    --accent-fg: #202124;
+    --danger: #f28b82;
+    --danger-fg: #202124;
+    --ok: #81c995;
+
+    --g-grey: #dadce0;
+    --g-blue: #8ab4f8;
+    --g-red: #f28b82;
+    --g-yellow: #fdd663;
+    --g-green: #81c995;
+    --g-pink: #ff8bcb;
+    --g-purple: #d7aefb;
+    --g-cyan: #78d9ec;
+    --g-orange: #fcad70;
+  }
+}
+
+[data-color='grey'] { --dot: var(--g-grey); }
+[data-color='blue'] { --dot: var(--g-blue); }
+[data-color='red'] { --dot: var(--g-red); }
+[data-color='yellow'] { --dot: var(--g-yellow); }
+[data-color='green'] { --dot: var(--g-green); }
+[data-color='pink'] { --dot: var(--g-pink); }
+[data-color='purple'] { --dot: var(--g-purple); }
+[data-color='cyan'] { --dot: var(--g-cyan); }
+[data-color='orange'] { --dot: var(--g-orange); }
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+/* Brave gives extension pages a smaller body font of its own; set it here so text is readable. */
+body {
+  font: 13px/1.45 system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 5px 10px;
+  min-height: 30px;
+}
+
+button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+
+button.danger {
+  color: var(--danger);
+}
+
+button.primary.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--danger-fg);
+}
+
+button.link {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  padding: 2px 4px;
+  min-height: 0;
+}
+
+button.link:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+input.text,
+select {
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+input.text:focus,
+select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+input.text.invalid {
+  border-color: var(--danger);
+}
+
+label.check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+label.check input {
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+  flex: none;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.swatch {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--dot) padding-box;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.swatch:hover:not(:disabled) {
+  background: var(--dot) padding-box;
+  filter: brightness(1.1);
+}
+
+.swatch[aria-pressed='true'] {
+  border-color: var(--bg);
+  box-shadow: 0 0 0 2px var(--fg);
+}

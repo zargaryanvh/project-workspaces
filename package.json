@@ -1,0 +1,33 @@
+{
+  "name": "project-workspaces",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Workspaces for Brave and Chrome, built on tab groups: one project open at a time, the others fold.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zargaryanvh/project-workspaces.git"
+  },
+  "homepage": "https://github.com/zargaryanvh/project-workspaces#readme",
+  "bugs": {
+    "url": "https://github.com/zargaryanvh/project-workspaces/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json",
+    "test": "playwright test --project=unit",
+    "smoke": "node scripts/build.mjs && playwright test --project=chromium",
+    "smoke:brave": "node scripts/build.mjs && playwright test --project=brave",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/chrome": "0.3.7",
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  }
+}

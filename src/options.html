@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Project workspaces: settings</title>
+    <link rel="stylesheet" href="options.css" />
+    <script type="module" src="options.js"></script>
+  </head>
+  <body>
+    <header class="savebar">
+      <div class="savebar-inner">
+        <div class="savebar-text">
+          <h1>Project workspaces</h1>
+          <p>Projects, addresses and settings. Changes are kept when you click Save.</p>
+        </div>
+        <div class="savebar-actions">
+          <span id="saved" class="saved" aria-live="polite"></span>
+          <button id="discard" type="button" class="with-icon" disabled>
+            <span class="icon-text" aria-hidden="true">&#x21B6;</span><span class="label">Discard</span>
+          </button>
+          <button id="save" type="button" class="primary with-icon" disabled>
+            <span class="icon-save" aria-hidden="true"></span><span class="label">Save changes</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section aria-labelledby="projects-title">
+        <div class="section-head">
+          <h2 id="projects-title">Projects and their addresses</h2>
+        </div>
+        <p class="help">
+          A tab that opens one of these addresses moves to that project. Only the exact address matches:
+          <code>example.com</code> does not match <code>www.example.com</code>; <code>*.example.com</code> matches
+          example.com and every address that ends with it. Local addresses work too, like <code>localhost:3000</code>. A tab you put in a group yourself is never moved. Drag a project by its
+          <span class="grip-sample" aria-hidden="true"></span> handle to change the order.
+        </p>
+        <div id="cards" class="cards"></div>
+        <div class="row-actions">
+          <button id="add-project" type="button">+ Add project</button>
+        </div>
+      </section>
+
+      <section aria-labelledby="warning-title">
+        <h2 id="warning-title">Already open</h2>
+        <label class="check">
+          <input id="duplicate-check" type="checkbox" />
+          <span>
+            Warn me when I open a project address in a new tab while that site is already open.
+            <span class="help-inline">
+              The new tab then shows a warning with a big Close button, Open anyway, and your tabs on that site.
+              Pages opened from a link on the same site, and tabs moving from site to site (like a sign-in), are
+              never warned.
+            </span>
+          </span>
+        </label>
+      </section>
+
+      <section aria-labelledby="behaviour-title">
+        <h2 id="behaviour-title">Behaviour</h2>
+        <label class="check">
+          <input id="follow" type="checkbox" />
+          <span>
+            Keep one project open.
+            <span class="help-inline">
+              When you open a tab or a folded group of another project from the tab bar, the other projects fold.
+              Turn this off if you often want two projects open at once.
+            </span>
+          </span>
+        </label>
+        <div class="field-block">
+          <label for="surface">The toolbar button opens</label>
+          <div class="combo-like">
+            <select id="surface" class="text">
+              <option value="sidePanel">the side panel (left or right)</option>
+              <option value="row">the project row (top, under the button)</option>
+            </select>
+          </div>
+          <p class="help-inline">
+            The other one is always one key away: set a key for "Open the project row" below.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="side-title">
+        <h2 id="side-title">Side panel: left or right</h2>
+        <p class="help" id="side-now">
+          Brave shows the side panel together with its sidebar, on the right or on the left.
+        </p>
+        <p class="help">
+          To move it: Brave Settings &gt; Appearance &gt; Sidebar &gt; <b>Show on the left</b> (or on the right).
+          To make it narrower, drag its inner edge. Brave decides how narrow it can get; the list fits any width.
+        </p>
+        <div><button id="open-brave-settings" type="button">Open Brave's sidebar setting</button></div>
+      </section>
+
+      <section aria-labelledby="keys-title">
+        <h2 id="keys-title">Keyboard shortcuts</h2>
+        <p class="help">
+          Brave lets an extension suggest only four keys, so Project 1 to Project 4 start on Alt+1 to Alt+4. You can
+          set the others yourself.
+        </p>
+        <ul id="key-list" class="keys"></ul>
+        <div><button id="edit-keys" type="button">Change shortcuts</button></div>
+      </section>
+
+      <section aria-labelledby="privacy-title">
+        <h2 id="privacy-title">Privacy</h2>
+        <p class="help">
+          This extension never connects to the internet. It sends nothing anywhere, has no analytics and runs no code
+          from outside. It reads tab addresses only for the rules and the warning above, on this computer. Your
+          projects, addresses and settings stay in this Brave profile.
+        </p>
+        <ul class="perms">
+          <li><b>tabs</b>: see tab addresses, for the rules and the warning.</li>
+          <li><b>tabGroups</b>: open, fold and move tab groups.</li>
+          <li><b>storage</b>: remember projects, addresses and settings.</li>
+          <li><b>sidePanel</b>: show the project list at the side.</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>
