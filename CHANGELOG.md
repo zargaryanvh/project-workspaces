@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Settings page and README: how to put the list on the left (with pictures), and how to get a narrow project list with Brave's vertical tabs.
+
 ## 0.2.0 (2026-11-18)
 
 - The list now always has the tab bar's order. Drag a project by its grip to reorder it; the tab bar follows, and dragging a group in the tab bar moves it in the list.

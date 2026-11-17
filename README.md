@@ -48,6 +48,7 @@ Private by design: no network requests, no analytics, no code from outside. See 
 - **Reopened windows** (Ctrl+Shift+T) and browser restarts get back the project that was open, on the tab you used last.
 - **Staging projects:** a name that starts with 🟠 gets the orange group colour.
 - **Hands off your tabs:** it never reloads tabs or puts them to sleep. It closes a tab only when you click "Close this tab" on the warning.
+- **Works with Brave's vertical tabs:** each project becomes one row there, as narrow as you like.
 
 ## Install
 
@@ -83,14 +84,34 @@ Click the gear at the top of the list.
 - **Projects and their addresses:** one card per project. Add as many addresses as you need. Without `*.`, only the exact address matches: `example.com` does not match `www.example.com`. With `*.`, the address and everything that ends with it match.
 - **Already open:** turn the warning on or off. It only checks new tabs (typed addresses, bookmarks, links opened in a new tab, links from other apps). Links within one site and sign-in redirects are never warned.
 - **Behaviour:** keep one project open, and choose what the toolbar button opens (the side panel or the project row).
-- **Side panel: left or right:** the browser decides the side. In Brave: Settings > Appearance > Sidebar > Show on the left. In Chrome: Settings > Appearance > Side panel.
+- **Side panel: left or right:** the browser decides the side (see the next section).
 - Changes are kept when you click **Save changes** in the bar at the top. The browser asks before you leave the page with unsaved changes.
+
+## Put the list on the left
+
+Brave shows the side panel together with its sidebar. Open `brave://settings/appearance`, go down to **Sidebar** and click **Show on the left**:
+
+![Brave Settings, Sidebar: click Show on the left](docs/left-settings.png)
+
+The project list is then on the left:
+
+![The project list on the left side of Brave](docs/left-result.png)
+
+In Chrome: Settings > Appearance > Side panel.
+
+## A narrow project list: Brave's vertical tabs
+
+Brave does not let the side panel get narrower than about 400 px. For a narrow list, turn on Brave's vertical tabs: `brave://settings/appearance` > **Tabs** > **Use vertical tabs**. With this extension, each project is one row there, and only the open project shows its tabs. Drag the strip's edge to make it as narrow as you like (110 px works). Click a project row to open it; the others fold.
+
+In the same place, **Show on the right** moves the strip to the right, and **Auto expand on hover when minimized** shrinks it to a thin bar that widens when you point at it.
+
+![Brave's vertical tabs as a narrow project list: one row per project](docs/vertical-tabs.png)
 
 ## Limits set by the browser
 
 - Extensions cannot hide tabs, so the other projects stay in the tab bar as small folded labels.
 - Extension panels sit on the left or the right, not at the top or the bottom. The project row covers the top.
-- The browser decides how narrow the side panel can get. The list fits any width: names end with "..." and the extras hide.
+- The browser decides how narrow the side panel can get (Brave: about 400 px). The list fits any width: names end with "..." and the extras hide. For a narrower list, use Brave's vertical tabs (see above).
 - An extension may suggest only four keyboard shortcuts. Set the others yourself.
 - If the browser's Memory Saver is on, the browser may put tabs you have not used for a while to sleep.
 

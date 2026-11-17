@@ -491,9 +491,9 @@ surfaceEl.addEventListener('change', () => {
 document
   .getElementById('edit-keys')
   ?.addEventListener('click', () => void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }));
-document
-  .getElementById('open-brave-settings')
-  ?.addEventListener('click', () => void chrome.tabs.create({ url: 'chrome://settings/appearance' }));
+for (const id of ['open-brave-settings', 'open-tab-settings']) {
+  document.getElementById(id)?.addEventListener('click', () => void chrome.tabs.create({ url: 'chrome://settings/appearance' }));
+}
 document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
