@@ -1,3 +1,4 @@
+import type { Rect } from './dock.js';
 import type { GroupColor } from './types.js';
 
 /**
@@ -26,7 +27,14 @@ export type Message =
   /** Moves a tab inside its project: right before another tab of it, or last (null). */
   | { type: 'moveTab'; tabId: number; beforeTabId: number | null }
   /** The ✕ on a tab in a tab list. */
-  | { type: 'closeTab'; tabId: number };
+  | { type: 'closeTab'; tabId: number }
+  /** Opens the narrow project window beside this Brave window (or brings it to the front). */
+  | { type: 'openProjectWindow'; windowId: number }
+  /**
+   * From the narrow project window: dock it on this screen work area, with
+   * Brave beside it. `width` is a new width the owner dragged it to.
+   */
+  | { type: 'dockWindow'; selfId: number; area: Rect; width?: number };
 
 export type Reply = { ok: true; result: unknown } | { ok: false; error: string };
 
@@ -45,6 +53,8 @@ const TYPES = new Set([
   'nameTab',
   'moveTab',
   'closeTab',
+  'openProjectWindow',
+  'dockWindow',
 ]);
 
 export function isMessage(value: unknown): value is Message {

@@ -109,6 +109,12 @@ sequenceDiagram
 
 The check runs for tabs that showed no web page yet: a new tab, a link opened in a new tab, a bookmark, a link from another app. If the address belongs to a project and another tab already shows that site (same host and port), the new tab is sent to the warning page. A link opened from the same site is never warned, and a tab going from one site to another (for example during a sign-in) is never checked. Everything the check needs is taken from the event itself, because a fast page (a local dev server) has loaded before any later look at the tab.
 
+## The narrow project window
+
+Brave's side panel cannot be narrower than 400 px, so the list can also live in a popup window of its own (`panel.html?view=window`). With that choice, the toolbar button has no popup and no panel, so its click reaches `chrome.action.onClicked`, and the worker opens the window over Brave. The page then reads its screen's work area (`screen.availLeft` and the rest, the screen without the taskbar) and asks the worker to dock: `dockLayout` (in `src/lib/dock.ts`) puts the list at the edge on the sidebar's side and Brave in the rest. A width the owner drags the window to is saved and used from then on. The list shows the projects of the Brave window used last.
+
+When the window closes, Brave is maximized again if it was before. Choosing the side panel again closes the window; a window Brave restores after that is closed too, and one restored while the choice is still on is adopted.
+
 ## Staying light
 
 The extension runs all day next to every tab, so the busy paths do as little as possible.

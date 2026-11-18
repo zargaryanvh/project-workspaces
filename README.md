@@ -56,6 +56,7 @@ Private by design: no network requests, no analytics, no code from outside. See 
 - **Your own icons:** a name that starts with an emoji ("🔵 Admin", "🛒 Shopping") shows that emoji in the list instead of the colour dot.
 - **Hands off your tabs:** it never reloads tabs or puts them to sleep. It closes a tab only when you ask: ✕ on a tab in the list, or "Close this tab" on the warning.
 - **Works with Brave's vertical tabs:** each project becomes one row there, as narrow as you like.
+- **Narrow project window:** the whole list in a small window of its own beside Brave, narrower than the side panel can be (300 px to start, drag to change). Switch back to the side panel at any time.
 - **Light on the browser:** title and icon changes cost it almost nothing, saves are batched, and the side panel redraws only the rows that changed.
 
 ## Install
@@ -92,7 +93,7 @@ Click the gear at the top of the list.
 
 - **Projects and their addresses:** one card per project. Add as many addresses as you need. Without `*.`, only the exact address matches: `example.com` does not match `www.example.com`. With `*.`, the address and everything that ends with it match.
 - **Already open:** turn the warning on or off. It only checks new tabs (typed addresses, bookmarks, links opened in a new tab, links from other apps). Links within one site and sign-in redirects are never warned.
-- **Behaviour:** keep one project open, and choose what the toolbar button opens (the side panel or the project row).
+- **Behaviour:** keep one project open, and choose what the toolbar button opens: the side panel, the project row, or the narrow project window.
 - **Side panel: left or right:** the browser decides the side (see the next section).
 - Changes are kept when you click **Save changes** in the bar at the top. The browser asks before you leave the page with unsaved changes.
 
@@ -116,11 +117,24 @@ In the same place, **Show on the right** moves the strip to the right, and **Aut
 
 ![Brave's vertical tabs as a narrow project list: one row per project](docs/vertical-tabs.png)
 
+## Or: a narrow project window
+
+If you want the full list (tab lists, your tab names, the menu) but narrower than the side panel, use the narrow project window. It is the same list in a small window of its own, at the edge of the screen on the sidebar's side, with Brave beside it.
+
+1. Open the settings (the gear at the top of the list).
+2. Under **Behaviour**, set **The toolbar button opens** to **a narrow project window (beside Brave)**, and click **Save changes**.
+3. Click the toolbar button (or press its key). The window opens at 300 px and Brave takes the rest of the screen.
+
+Drag the window's edge to change its width: it keeps the new width. To go back, choose **the side panel** in the same place: the window closes, and Brave gets its whole screen back (maximized again if it was).
+
+![The narrow project window at the left edge of the screen, Brave beside it](docs/project-window.png)
+
 ## Limits set by the browser
 
 - Extensions cannot hide tabs, so the other projects stay in the tab bar as small folded labels.
 - Extension panels sit on the left or the right, not at the top or the bottom. The project row covers the top.
-- The browser decides how narrow the side panel can get: 400 px in Brave, 360 px in Chrome, and a saved narrower width is ignored. The list fits any width: names end with "..." and the extras hide. For a narrower list, use Brave's vertical tabs (see above).
+- The browser decides how narrow the side panel can get: 400 px in Brave, 360 px in Chrome, and a saved narrower width is ignored. The list fits any width: names end with "..." and the extras hide. For a narrower list, use Brave's vertical tabs or the narrow project window (see above).
+- The narrow project window is a window of its own: Windows shows it in the taskbar and in Alt+Tab, and it follows Windows' light or dark setting.
 - An extension may suggest only four keyboard shortcuts. Set the others yourself.
 - Your tab names show in this extension's list and on its warning page. The tab bar keeps each page's own title: changing it there would mean running code inside every site you open.
 - Tabs move only inside their own project in the list. To move a tab to another project, drag it in the tab bar.

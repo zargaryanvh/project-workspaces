@@ -50,6 +50,7 @@ test.describe('stored data', () => {
         settings: DEFAULT_SETTINGS,
         tabNames: [],
         expanded: [],
+        projectWindowWidth: 300,
       });
     }
     expect(DEFAULT_SETTINGS).toEqual({ follow: true, surface: 'sidePanel', duplicateCheck: true });
@@ -62,6 +63,13 @@ test.describe('stored data', () => {
       duplicateCheck: true,
     });
     expect(sanitizeLocal({ openProjects: { 'a\nb': 'a', bad: 3, '': 'x' } }).openProjects).toEqual({ 'a\nb': 'a' });
+  });
+
+  test('the narrow project window: its setting and its saved width', () => {
+    expect(sanitizeLocal({ settings: { surface: 'window' } }).settings.surface).toBe('window');
+    expect(sanitizeLocal({ projectWindowWidth: 260 }).projectWindowWidth).toBe(260);
+    expect(sanitizeLocal({ projectWindowWidth: 20 }).projectWindowWidth).toBe(180);
+    expect(sanitizeLocal({ projectWindowWidth: 'wide' }).projectWindowWidth).toBe(300);
   });
 
   test('bad entries are dropped, repeated names kept once, unknown colours become grey', () => {

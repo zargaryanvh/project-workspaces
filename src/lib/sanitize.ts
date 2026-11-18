@@ -1,3 +1,4 @@
+import { clampWindowWidth } from './dock.js';
 import { normalizeRuleHost } from './rules.js';
 import { cleanTabName, MAX_TAB_NAMES, type NameLinks } from './tabNames.js';
 import { cleanTitle, projectKey } from './titles.js';
@@ -59,6 +60,7 @@ export function sanitizeSettings(value: unknown): Settings {
   let surface = DEFAULT_SETTINGS.surface;
   if (value.surface === 'sidePanel') surface = 'sidePanel';
   if (value.surface === 'row' || value.surface === 'popup') surface = 'row'; // 'popup' is the 0.1 name
+  if (value.surface === 'window') surface = 'window';
   return {
     follow: typeof value.follow === 'boolean' ? value.follow : DEFAULT_SETTINGS.follow,
     surface,
@@ -134,5 +136,6 @@ export function sanitizeLocal(raw: unknown): LocalState {
     settings: sanitizeSettings(value.settings),
     tabNames: sanitizeTabNames(value.tabNames),
     expanded: sanitizeExpanded(value.expanded),
+    projectWindowWidth: clampWindowWidth(typeof value.projectWindowWidth === 'number' ? value.projectWindowWidth : Number.NaN),
   };
 }

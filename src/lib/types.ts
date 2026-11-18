@@ -39,8 +39,12 @@ export interface Rule {
   enabled: boolean;
 }
 
-/** What the toolbar button opens: the side panel (left or right, as Brave's sidebar) or the project row at the top. */
-export type Surface = 'sidePanel' | 'row';
+/**
+ * What the toolbar button opens: the side panel (left or right, as Brave's
+ * sidebar), the project row at the top, or the narrow project window (a window
+ * of its own beside Brave, narrower than the side panel can be).
+ */
+export type Surface = 'sidePanel' | 'row' | 'window';
 
 export interface Settings {
   /**
@@ -93,6 +97,8 @@ export interface LocalState {
   tabNames: TabName[];
   /** Projects whose tab list is open in the side panel, by projectKey(title). Only the arrow changes this. */
   expanded: string[];
+  /** Width of the narrow project window, as the owner last dragged it (px). */
+  projectWindowWidth: number;
 }
 
 /** A tab group as the pure helpers see it. */

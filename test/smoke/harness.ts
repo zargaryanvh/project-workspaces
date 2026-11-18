@@ -89,10 +89,14 @@ export async function launchBrowser(
   userDataDir: string,
   kind: BrowserKind,
   extraArgs: string[] = [],
+  options: { realScreen?: boolean } = {},
 ): Promise<{ ctx: BrowserContext; sw: Worker; extensionId: string }> {
   const brave = kind === 'brave' ? findBrave() : null;
   const ctx = await chromium.launchPersistentContext(userDataDir, {
     headless: true,
+    // Window tests need pages to see the browser's own screen (not Playwright's 1280x720 viewport),
+    // so the screen a page reports and the one window bounds are checked against agree.
+    ...(options.realScreen ? { viewport: null } : {}),
     ...(brave ? { executablePath: brave } : { channel: 'chromium' }),
     ignoreDefaultArgs: ['--disable-extensions'],
     args: [
