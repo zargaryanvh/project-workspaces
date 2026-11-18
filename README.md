@@ -127,7 +127,7 @@ If you want the full list (tab lists, your tab names, the menu) but narrower tha
 
 The two stay together:
 
-- Drag the edge between them, and both change size. The list keeps its new width for next time.
+- Drag the edge between them, and both change size as you drag. The list keeps its new width for next time.
 - Move or resize Brave, or the list, and the other goes along, to another screen too.
 - Maximize Brave, and the list takes its strip at the screen edge again.
 - Minimize Brave, or bring it to the front from another app, and the list goes with it.
@@ -141,7 +141,7 @@ To go back, choose **the side panel** in the same place: the project windows clo
 - Extensions cannot hide tabs, so the other projects stay in the tab bar as small folded labels.
 - Extension panels sit on the left or the right, not at the top or the bottom. The project row covers the top.
 - The browser decides how narrow the side panel can get: 400 px in Brave, 360 px in Chrome, and a saved narrower width is ignored. The list fits any width: names end with "..." and the extras hide. For a narrower list, use Brave's vertical tabs or the narrow project window (see above).
-- The narrow project window is a window of its own: Windows shows it in the taskbar and in Alt+Tab, and it follows Windows' light or dark setting. It follows Brave when a move ends, not during the drag. Between two screens with different scaling, the two can overlap by a few pixels.
+- The narrow project window is a window of its own: Windows shows it in the taskbar and in Alt+Tab, and it follows Windows' light or dark setting. Brave tells extensions its size only now and then while you drag it, so when you drag Brave itself (its title bar, or its edge from inside Brave) the list catches up a moment later. Dragging the list's edge, or Brave's edge reached from the list, both move together. Between two screens with different scaling, the two can overlap by a few pixels.
 - An extension may suggest only four keyboard shortcuts. Set the others yourself.
 - Your tab names show in this extension's list and on its warning page. The tab bar keeps each page's own title: changing it there would mean running code inside every site you open.
 - Tabs move only inside their own project in the list. To move a tab to another project, drag it in the tab bar.

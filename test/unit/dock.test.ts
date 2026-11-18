@@ -11,6 +11,7 @@ import {
   sameRect,
   toOuter,
   toVisible,
+  usableWidth,
   type Pair,
 } from '../../src/lib/dock.js';
 
@@ -111,13 +112,16 @@ test("Brave's edge next to the list dragged: the list takes the room, from the s
   const wider = followBrowser(area, 'left', 300, { left: 420, top: 0, width: 1500, height: 1040 }, docked);
   expect(wider.list).toEqual({ left: 0, top: 0, width: 420, height: 1040 });
   expect(wider.browser).toEqual({ left: 420, top: 0, width: 1500, height: 1040 });
-  const narrower = followBrowser(area, 'left', 300, { left: 100, top: 0, width: 1820, height: 1040 }, docked);
-  expect(narrower.list.width, 'never narrower than the minimum').toBe(180);
-  expect(narrower.browser.left).toBe(180);
+  const narrower = followBrowser(area, 'left', 300, { left: 150, top: 0, width: 1770, height: 1040 }, docked);
+  expect(narrower.list.width, 'as narrow as the room, below the opening width too').toBe(150);
+  expect(narrower.browser.left).toBe(150);
+  const tooNarrow = followBrowser(area, 'left', 300, { left: 60, top: 0, width: 1860, height: 1040 }, docked);
+  expect(tooNarrow.list.width, 'never narrower than a usable list').toBe(120);
+  expect(tooNarrow.browser.left, "then Brave's edge is pushed back").toBe(120);
   expect(narrower.browser.left + narrower.browser.width, "Brave's far edge stays").toBe(1920);
-  const tooWide = followBrowser(area, 'left', 300, { left: 900, top: 0, width: 1020, height: 1040 }, docked);
-  expect(tooWide.list.width, 'never wider than the maximum').toBe(600);
-  expect(tooWide.browser.left).toBe(600);
+  const wide = followBrowser(area, 'left', 300, { left: 900, top: 0, width: 1020, height: 1040 }, docked);
+  expect(wide.list.width, 'as wide as the owner made the room').toBe(900);
+  expect(wide.browser.left).toBe(900);
 });
 
 test('a Brave window that is not maximized: the list opens attached to it, not at the screen edge', () => {
@@ -175,10 +179,20 @@ test('the list moved: Brave goes along with its width, but not past the screen e
   expect(nearEdge.browser).toEqual({ left: 1200, top: 0, width: 720, height: 800 });
 });
 
-test('the list dragged wider than allowed is held at the maximum', () => {
-  const next = followList(area, { left: 0, top: 0, width: 750, height: 1040 }, docked);
-  expect(next.list.width).toBe(600);
-  expect(next.browser.left).toBe(600);
+test('the list keeps the size the owner dragged it to: only Brave moves', () => {
+  const wide = followList(area, { left: 0, top: 0, width: 750, height: 1040 }, docked);
+  expect(wide.list.width).toBe(750);
+  expect(wide.browser.left).toBe(750);
+  const narrow = followList(area, { left: 0, top: 0, width: 150, height: 1040 }, docked);
+  expect(narrow.list.width).toBe(150);
+  expect(narrow.browser).toEqual({ left: 150, top: 0, width: 1770, height: 1040 });
+});
+
+test('a width to place the list at: at least usable, at most half the screen', () => {
+  expect(usableWidth(300, 1920)).toBe(300);
+  expect(usableWidth(80, 1920)).toBe(120);
+  expect(usableWidth(1200, 1920)).toBe(960);
+  expect(usableWidth(Number.NaN, 1920)).toBe(300);
 });
 
 test('a list on the right of Brave: Brave follows on the left', () => {

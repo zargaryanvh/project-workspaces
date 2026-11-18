@@ -122,7 +122,12 @@ The page then keeps the pair together itself (`src/projectWindow.ts`), with the 
 
 When Brave is on another screen, the list first steps onto it, inside Brave's edge, so the page learns that screen's work area, and then places both. The page's own moves fire `chrome.windows.onBoundsChanged` too: a window that is where the page put it is left alone.
 
-Every rectangle is worked out as what shows of a window. Windows gives each window an invisible border for resizing (7 px on the left, right and bottom at 100 %, none at the top), and windows are placed by their outer box, so two windows placed edge to edge show a gap of two borders. The page measures the border from inside its own window (`frameInset`: its outer width less the width its page gets, less the 1 px line that shows), measures it again after every resize (it changes with the screen's scale), and places both windows so their visible edges touch.
+During a drag, the window in the owner's hand is never moved: Windows would put it back under the pointer at the next step, or end the drag. So only the other window follows, and a move never "restores" a window that is not maximized or minimized (that would bring it to the front and take the focus). How each drag is heard:
+
+- The list's edge: the page gets a `resize` event for every step of its own window, and moves Brave's edge in the same frame.
+- Brave: `chrome.windows.onBoundsChanged` fires only now and then during a drag (often once, when the size stops changing). From that first event, or from the pointer leaving the list through the edge next to Brave (about to grab it), the page looks at Brave every 40 ms and moves the list with it. When Brave has stayed still for a second, the drag counts as over, and only then may Brave itself be moved: to keep the list on screen, or not narrower than it can be.
+
+Every rectangle is worked out as what shows of a window. Windows gives each window an invisible border for resizing (7 px on the left, right and bottom at 100 %, none at the top), and windows are placed by their outer box, so two windows placed edge to edge show a gap of two borders. The page measures the border from inside its own window (`frameInset`: its outer width less the width its page gets, less the 1 px line that shows) and places both windows so their visible edges touch. It measures twice, a moment apart, and keeps the value only when both agree: mid-resize, the page is a step behind its window and the answer is wrong. It measures again when the screen's scale changes (the window moved to another screen).
 
 Focus and minimizing follow `chrome.windows.onFocusChanged`: when one of the pair comes to the front from another app, the other is brought up behind it, and the first gets the focus back. When Brave is minimized, the list is too, and it comes back with Brave. A list the owner minimized alone stays down.
 
@@ -144,7 +149,7 @@ The side panel:
 - keeps every row whose content did not change, so a new title redraws one row, at most every 0.4 seconds;
 - draws nothing while it is hidden.
 
-The narrow project window acts only on its own two windows: their moves, and focus coming to them from another app. It places a window only when that window is not already where it belongs.
+The narrow project window acts only on its own two windows: their moves, and focus coming to them from another app. It places a window only when that window is not already where it belongs, and it looks at Brave every 40 ms only while Brave may be being dragged.
 
 ## Testing
 

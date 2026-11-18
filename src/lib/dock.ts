@@ -30,6 +30,8 @@ export interface Pair {
 export const PROJECT_WINDOW_DEFAULT_WIDTH = 300;
 export const PROJECT_WINDOW_MIN_WIDTH = 180;
 export const PROJECT_WINDOW_MAX_WIDTH = 600;
+/** Dragged narrower than this, the list stops shrinking (it would be no use). */
+export const LIST_SMALLEST_WIDTH = 120;
 /** Brave does not make a window narrower than this. */
 export const BROWSER_MIN_WIDTH = 500;
 /** Window edges this close count as the same edge. */
@@ -40,6 +42,12 @@ export function clampWindowWidth(width: number, areaWidth = Number.POSITIVE_INFI
   const max = Math.max(PROJECT_WINDOW_MIN_WIDTH, Math.min(PROJECT_WINDOW_MAX_WIDTH, Math.floor(areaWidth / 2)));
   if (!Number.isFinite(width)) return Math.min(PROJECT_WINDOW_DEFAULT_WIDTH, max);
   return Math.round(Math.min(max, Math.max(PROJECT_WINDOW_MIN_WIDTH, width)));
+}
+
+/** A width to place the list at: what it has, but at least usable and at most half the screen. */
+export function usableWidth(width: number, areaWidth: number): number {
+  const most = Math.max(LIST_SMALLEST_WIDTH, Math.floor(areaWidth / 2));
+  return Math.round(Math.min(most, Math.max(LIST_SMALLEST_WIDTH, Number.isFinite(width) ? width : PROJECT_WINDOW_DEFAULT_WIDTH)));
 }
 
 /**
@@ -123,9 +131,11 @@ export function dockLayout(area: Rect, side: Side, width: number): Pair {
  * Brave was moved or resized (or the list opens beside a Brave that is not
  * maximized): the list goes along, at the same height. When Brave's edge next
  * to the list was dragged and the list sits at the screen edge, the list
- * takes the new room; otherwise it keeps its width and moves. A list that
- * would leave the screen stays at the edge and pushes Brave's edge instead.
- * `before` is how the two were last seen, when known.
+ * takes the new room, whatever it is (down to LIST_SMALLEST_WIDTH); otherwise
+ * it keeps its width and moves. A list that would leave the screen stays at
+ * the edge and Brave's edge is pushed instead: the caller applies that part
+ * only once Brave is no longer being dragged. `before` is how the two were
+ * last seen, when known.
  */
 export function followBrowser(area: Rect, side: Side, width: number, browser: Rect, before: Pair | null): Pair {
   if (side === 'right') {
@@ -145,9 +155,9 @@ export function followBrowser(area: Rect, side: Side, width: number, browser: Re
   let listWidth: number;
   if (sharedEdgeDragged) {
     listLeft = area.left;
-    listWidth = clampWindowWidth(browser.left - area.left, area.width);
+    listWidth = Math.max(LIST_SMALLEST_WIDTH, browser.left - area.left);
   } else {
-    listWidth = clampWindowWidth(width, area.width);
+    listWidth = usableWidth(width, area.width);
     listLeft = Math.max(area.left, browser.left - listWidth);
   }
   const browserLeft = listLeft + listWidth;
@@ -163,10 +173,11 @@ export function followBrowser(area: Rect, side: Side, width: number, browser: Re
  * the same side as before (on the other side only when Brave has no room left
  * on its own). When the list's edge next to Brave was dragged, Brave keeps its
  * far edge (the two share the space); when the list moved, Brave keeps its
- * width, but not past the screen edge. `before` is how the two were last seen.
+ * width, but not past the screen edge. The list keeps the size the owner gave
+ * it: only Brave moves. `before` is how the two were last seen.
  */
 export function followList(area: Rect, list: Rect, before: Pair): Pair & { side: Side } {
-  const listWidth = clampWindowWidth(list.width, area.width);
+  const listWidth = list.width;
   const roomRight = right(area) - (list.left + listWidth);
   const roomLeft = list.left - area.left;
   let side: Side = centerX(before.list) <= centerX(before.browser) ? 'left' : 'right';
@@ -178,7 +189,7 @@ export function followList(area: Rect, list: Rect, before: Pair): Pair & { side:
 
 /** followList with the list on Brave's left (the right side is worked out in a mirror). */
 function followListOnLeft(area: Rect, list: Rect, before: Pair): Pair {
-  const listWidth = clampWindowWidth(list.width, area.width);
+  const listWidth = list.width;
   const beforeOnLeft = centerX(before.list) <= centerX(before.browser);
   const resized = !near(list.width, before.list.width);
   const outerEdgeKept = near(list.left, before.list.left);
