@@ -1,4 +1,4 @@
-import type { Rect } from './dock.js';
+import type { Side } from './dock.js';
 import type { GroupColor } from './types.js';
 
 /**
@@ -28,13 +28,26 @@ export type Message =
   | { type: 'moveTab'; tabId: number; beforeTabId: number | null }
   /** The ✕ on a tab in a tab list. */
   | { type: 'closeTab'; tabId: number }
-  /** Opens the narrow project window beside this Brave window (or brings it to the front). */
+  /** Opens this Brave window's own project window (or brings it to the front). */
   | { type: 'openProjectWindow'; windowId: number }
+  /** What the toolbar button does: opens this Brave window's project window, or closes it. */
+  | { type: 'toggleProjectWindow'; windowId: number }
   /**
-   * From the narrow project window: dock it on this screen work area, with
-   * Brave beside it. `width` is a new width the owner dragged it to.
+   * From a project window as it starts: which Brave window it belongs to (see
+   * ProjectWindowAttachment). `browserMaximized`: the owner maximized that
+   * Brave window while they were together, so it is maximized again when the
+   * list closes.
    */
-  | { type: 'dockWindow'; selfId: number; area: Rect; width?: number };
+  | { type: 'dockWindow'; selfId: number; browserMaximized?: boolean }
+  /** The owner dragged a project window to a new width: new ones open at it. */
+  | { type: 'setProjectWindowWidth'; width: number };
+
+/** The answer to dockWindow, or null when the project window closes instead. */
+export interface ProjectWindowAttachment {
+  browserId: number;
+  width: number;
+  side: Side;
+}
 
 export type Reply = { ok: true; result: unknown } | { ok: false; error: string };
 
@@ -54,7 +67,9 @@ const TYPES = new Set([
   'moveTab',
   'closeTab',
   'openProjectWindow',
+  'toggleProjectWindow',
   'dockWindow',
+  'setProjectWindowWidth',
 ]);
 
 export function isMessage(value: unknown): value is Message {

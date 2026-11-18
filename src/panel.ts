@@ -1,10 +1,12 @@
 /**
- * The project list. Two views of the same list:
+ * The project list. Three views of the same list:
  * - the side panel (left or right, wherever Brave's sidebar is): a column with
  *   everything, from switching to making and changing projects, and under each
  *   project its tabs, opened with the arrow;
  * - the project row (view=row): a row of project labels under the toolbar
- *   button, to switch quickly.
+ *   button, to switch quickly;
+ * - the narrow project window (view=window): the side panel's list in a window
+ *   of its own, attached to the side of its Brave window (see projectWindow.ts).
  * The order is always the tab bar's order. Every change is asked of the
  * background worker.
  */
@@ -12,6 +14,7 @@
 import { toGroupInfo } from './lib/chromeShapes.js';
 import { buildList, moveTarget, type ListItem } from './lib/list.js';
 import { send } from './lib/messages.js';
+import { startProjectWindow } from './projectWindow.js';
 import { sanitizeExpanded, sanitizeNameLinks, sanitizeRules, sanitizeTabNames } from './lib/sanitize.js';
 import { moveTabRow, projectTabRows, shortAddress, tabRowText, type TabForList, type TabRow } from './lib/tabList.js';
 import { cleanTabName, MAX_TAB_NAME_LENGTH, tabLabels, type NameLinks } from './lib/tabNames.js';
@@ -1182,70 +1185,19 @@ function wireEvents(): void {
   });
 }
 
-// ---------------------------------------------------------------- the narrow project window
-
-/** The Brave window the project window shows: the one used last (it follows when another one is used). */
-async function lastBraveWindow(): Promise<number> {
-  return (await chrome.windows.getLastFocused({ windowTypes: ['normal'] })).id ?? -1;
-}
-
-let lastDockedWidth = 0;
-let dockedAt = 0;
-
-/** Asks the worker to dock this window on its screen's work area (taskbar excluded). */
-async function dock(width?: number): Promise<void> {
-  const self = (await chrome.windows.getCurrent()).id;
-  if (self === undefined) return;
-  const s = screen as Screen & { availLeft?: number; availTop?: number };
-  dockedAt = Date.now();
-  const docked = await send({
-    type: 'dockWindow',
-    selfId: self,
-    area: { left: s.availLeft ?? 0, top: s.availTop ?? 0, width: s.availWidth, height: s.availHeight },
-    ...(width !== undefined ? { width } : {}),
-  });
-  if (typeof docked === 'number' && docked > 0) lastDockedWidth = docked; // the width the window now has
-}
-
-function wireWindowView(): void {
-  // Another Brave window used: show its projects.
-  chrome.windows.onFocusChanged.addListener(
-    (id) => {
-      if (id === chrome.windows.WINDOW_ID_NONE || id === windowId) return;
-      windowId = id;
-      known.tabs = [];
-      known.groups = [];
-      void refresh();
-    },
-    { windowTypes: ['normal'] },
-  );
-  // The owner dragged the edge: keep that width, and Brave takes the rest of the screen.
-  let resizeTimer: ReturnType<typeof setTimeout> | undefined;
-  window.addEventListener('resize', () => {
-    if (resizeTimer !== undefined) clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      if (Date.now() - dockedAt < 800) return; // the resize that docking itself caused
-      if (Math.abs(window.outerWidth - lastDockedWidth) < 3) return;
-      void dock(window.outerWidth).catch(dockFailed);
-    }, 400);
-  });
-}
-
-/** The screen refused the place (an odd monitor layout): the window stays where it is, and that is fine. */
-function dockFailed(err: unknown): void {
-  console.warn('[Project workspaces] the project window could not dock:', err);
-}
-
 async function main(): Promise<void> {
-  const fromQuery = Number(params.get('windowId'));
-  if (Number.isInteger(fromQuery) && fromQuery > 0) windowId = fromQuery;
-  else if (windowView) windowId = await lastBraveWindow();
-  else windowId = (await chrome.windows.getCurrent()).id ?? -1;
+  if (windowView) {
+    // The narrow project window belongs to one Brave window, which the worker names; it keeps itself beside it.
+    const browser = await startProjectWindow();
+    if (browser === null) return; // this window closes instead
+    windowId = browser;
+  } else {
+    const fromQuery = Number(params.get('windowId'));
+    windowId = Number.isInteger(fromQuery) && fromQuery > 0 ? fromQuery : ((await chrome.windows.getCurrent()).id ?? -1);
+  }
   wireEvents();
-  if (windowView) wireWindowView();
   await loadStored();
   await Promise.all([refresh(), refreshShortcuts()]);
-  if (windowView) await dock().catch(dockFailed);
 }
 
 void main().catch(showError);

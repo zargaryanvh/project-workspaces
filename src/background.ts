@@ -19,8 +19,8 @@
 import { readWindow, toGroupInfo, toTabInfos } from './lib/chromeShapes.js';
 import { findAlreadyOpen } from './lib/duplicates.js';
 import { buildList, commandTarget } from './lib/list.js';
-import { isMessage, type Message, type Reply } from './lib/messages.js';
-import { clampWindowWidth, dockLayout, type Rect, type Side } from './lib/dock.js';
+import { isMessage, type Message, type ProjectWindowAttachment, type Reply } from './lib/messages.js';
+import { clampWindowWidth, nearestWindow, type Side } from './lib/dock.js';
 import { groupMoveIndex, tabMoveIndex } from './lib/order.js';
 import { groupsToFold, planSwitch, type SwitchPlan } from './lib/plan.js';
 import {
@@ -89,12 +89,14 @@ interface SessionState {
   windows: Record<string, number>;
   /** Tabs where the owner chose "Open anyway": the address they may load without a warning. */
   allowed: Record<string, string>;
-  /** The narrow project window, if one is open: its id, the Brave window beside it, and how that window was before. */
-  projectWindow: ProjectWindowRecord | null;
+  /** The narrow project windows that are open, one per Brave window at most. */
+  projectWindows: ProjectWindowRecord[];
 }
 
 interface ProjectWindowRecord {
+  /** The project window. */
   id: number;
+  /** The Brave window it belongs to: it sits beside it and lists its projects. */
   browserId: number;
   /** Brave was maximized before the project window took a strip of the screen: maximize it again when it closes. */
   wasMaximized: boolean;
@@ -103,7 +105,7 @@ interface ProjectWindowRecord {
 type LocalKey = 'projects' | 'lastActive' | 'openProjects' | 'tabNames' | 'expanded' | 'projectWindowWidth';
 
 let local: LocalState = sanitizeLocal(undefined);
-let session: SessionState = { groups: {}, tabs: {}, windows: {}, allowed: {}, projectWindow: null };
+let session: SessionState = { groups: {}, tabs: {}, windows: {}, allowed: {}, projectWindows: [] };
 /**
  * Which open tab shows which tab name. Kept in chrome.storage.session under its
  * own key, so the side panel can follow it without hearing every other change.
@@ -140,17 +142,19 @@ function readSession(raw: unknown): SessionState {
   const value = (typeof raw === 'object' && raw !== null ? raw : {}) as Partial<SessionState>;
   const record = <T>(x: unknown): Record<string, T> =>
     typeof x === 'object' && x !== null && !Array.isArray(x) ? (x as Record<string, T>) : {};
-  const pw = value.projectWindow;
-  const projectWindow =
-    pw && typeof pw.id === 'number' && typeof pw.browserId === 'number'
-      ? { id: pw.id, browserId: pw.browserId, wasMaximized: pw.wasMaximized === true }
-      : null;
+  const projectWindows: ProjectWindowRecord[] = [];
+  for (const pw of Array.isArray(value.projectWindows) ? (value.projectWindows as unknown[]) : []) {
+    const r = (typeof pw === 'object' && pw !== null ? pw : {}) as Partial<ProjectWindowRecord>;
+    if (typeof r.id !== 'number' || typeof r.browserId !== 'number') continue;
+    if (projectWindows.some((p) => p.id === r.id || p.browserId === r.browserId)) continue;
+    projectWindows.push({ id: r.id, browserId: r.browserId, wasMaximized: r.wasMaximized === true });
+  }
   return {
     groups: record<GroupTrack>(value.groups),
     tabs: record<TabTrack>(value.tabs),
     windows: record<number>(value.windows),
     allowed: record<string>(value.allowed),
-    projectWindow,
+    projectWindows,
   };
 }
 
@@ -480,31 +484,53 @@ async function applySurface(): Promise<void> {
     if (hasSidePanel) await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
     await chrome.action.setPopup({ popup: ROW_POPUP });
   }
-  if (surface !== 'window') await closeProjectWindow(); // the owner went back to the side panel or the row
+  if (surface !== 'window') await closeProjectWindows(); // the owner went back to the side panel or the row
 }
 
 // ---------------------------------------------------------------- the narrow project window
 
 const PROJECT_WINDOW_PAGE = 'panel.html?view=window';
 
-async function projectWindowOpen(): Promise<chrome.windows.Window | null> {
-  const record = session.projectWindow;
-  if (!record) return null;
-  return chrome.windows.get(record.id).catch(() => null);
+function projectWindowOfBrowser(browserId: number): ProjectWindowRecord | undefined {
+  return session.projectWindows.find((p) => p.browserId === browserId);
 }
 
-/** Opens the narrow project window beside a Brave window, or brings it to the front. The page docks itself. */
-async function openProjectWindow(windowId: number): Promise<boolean> {
-  const open = await projectWindowOpen();
-  if (open?.id !== undefined) {
-    await chrome.windows.update(open.id, { focused: true });
-    return true;
-  }
-  let browser = await chrome.windows.get(windowId).catch(() => null);
-  if (!browser || browser.type !== 'normal') browser = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+function projectWindowRecord(listId: number): ProjectWindowRecord | undefined {
+  return session.projectWindows.find((p) => p.id === listId);
+}
+
+function forgetProjectWindow(listId: number): void {
+  const before = session.projectWindows.length;
+  session.projectWindows = session.projectWindows.filter((p) => p.id !== listId);
+  if (session.projectWindows.length !== before) saveSession();
+}
+
+/** A Brave window to work with: this one if it is a normal window, else the one used last. */
+async function normalWindow(windowId: number): Promise<chrome.windows.Window | null> {
+  const win = await chrome.windows.get(windowId).catch(() => null);
+  if (win?.type === 'normal' && win.id !== undefined) return win;
+  const last = await chrome.windows.getLastFocused({ windowTypes: ['normal'] }).catch(() => null);
+  return last?.id !== undefined ? last : null;
+}
+
+/** The project window of a Brave window, if it is open. */
+async function openProjectWindowOf(browserId: number): Promise<chrome.windows.Window | null> {
+  const record = projectWindowOfBrowser(browserId);
+  if (!record) return null;
+  const win = await chrome.windows.get(record.id).catch(() => null);
+  if (!win) forgetProjectWindow(record.id);
+  return win;
+}
+
+/** Opens a Brave window's own project window. It starts over Brave, on Brave's screen; the page then attaches itself. */
+async function createProjectWindow(browser: chrome.windows.Window): Promise<boolean> {
   if (browser.id === undefined) return false;
-  // It starts over Brave, on Brave's screen; once loaded it reads that screen's work area and docks.
-  const base = { url: chrome.runtime.getURL(PROJECT_WINDOW_PAGE), type: 'popup' as const, focused: true, width: local.projectWindowWidth };
+  const base = {
+    url: chrome.runtime.getURL(`${PROJECT_WINDOW_PAGE}&windowId=${browser.id}`),
+    type: 'popup' as const,
+    focused: true,
+    width: local.projectWindowWidth,
+  };
   const created = await chrome.windows
     .create({
       ...base,
@@ -512,12 +538,43 @@ async function openProjectWindow(windowId: number): Promise<boolean> {
       ...(browser.left !== undefined ? { left: browser.left } : {}),
       ...(browser.top !== undefined ? { top: browser.top } : {}),
     })
-    // Brave sits partly off screen: the browser refuses that place, so let it choose; docking follows.
+    // Brave sits partly off screen: the browser refuses that place, so let it choose; the page attaches anyway.
     .catch(() => chrome.windows.create(base));
   if (created?.id === undefined) return false;
-  session.projectWindow = { id: created.id, browserId: browser.id, wasMaximized: browser.state === 'maximized' };
+  session.projectWindows = [
+    ...session.projectWindows.filter((p) => p.browserId !== browser.id),
+    { id: created.id, browserId: browser.id, wasMaximized: browser.state === 'maximized' },
+  ];
   saveSession();
   return true;
+}
+
+/** Opens a Brave window's own project window, or brings it to the front. */
+async function openProjectWindow(windowId: number): Promise<boolean> {
+  const browser = await normalWindow(windowId);
+  if (browser?.id === undefined) return false;
+  const open = await openProjectWindowOf(browser.id);
+  if (open?.id === undefined) return createProjectWindow(browser);
+  await chrome.windows.update(open.id, open.state === 'minimized' ? { state: 'normal', focused: true } : { focused: true });
+  return true;
+}
+
+/**
+ * The toolbar button (and its key), with "a narrow project window" chosen:
+ * each Brave window has its own. A click opens this window's one, or closes it
+ * when it is open, as the side panel does. One put away in the taskbar comes back.
+ */
+async function toggleProjectWindow(windowId: number): Promise<boolean> {
+  const browser = await normalWindow(windowId);
+  if (browser?.id === undefined) return false;
+  const open = await openProjectWindowOf(browser.id);
+  if (open?.id === undefined) return createProjectWindow(browser);
+  if (open.state === 'minimized') {
+    await chrome.windows.update(open.id, { state: 'normal', focused: true });
+    return true;
+  }
+  await chrome.windows.remove(open.id).catch(() => undefined); // onWindowRemoved gives Brave its screen back
+  return false;
 }
 
 async function sidebarSide(): Promise<Side> {
@@ -530,37 +587,55 @@ async function sidebarSide(): Promise<Side> {
 }
 
 /**
- * The project window docks: it takes a strip at the screen edge, on the same
- * side as Brave's sidebar, and the Brave window beside it takes the rest. A
- * window Brave restored after a restart is adopted; one left over after the
- * owner went back to the side panel closes.
+ * A project window page starts: it learns which Brave window it belongs to,
+ * the width to use and the side to start on. One Brave restored after a
+ * restart has lost its Brave window (window ids change) and takes the nearest
+ * Brave window that has none; one left over after the owner went back to the
+ * side panel, or with no Brave window to belong to, closes.
  */
-async function dockProjectWindow(selfId: number, area: Rect, width: number | undefined): Promise<number> {
-  if (local.settings.surface !== 'window') {
+async function attachProjectWindow(selfId: number, browserMaximized: boolean): Promise<ProjectWindowAttachment | null> {
+  const closeSelf = async (): Promise<null> => {
+    forgetProjectWindow(selfId);
     await chrome.windows.remove(selfId).catch(() => undefined);
-    return 0;
-  }
-  let record = session.projectWindow;
-  if (!record || record.id !== selfId) {
-    const browser = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
-    if (browser.id === undefined) return 0;
-    record = { id: selfId, browserId: browser.id, wasMaximized: browser.state === 'maximized' };
-    session.projectWindow = record;
+    return null;
+  };
+  if (local.settings.surface !== 'window') return closeSelf();
+  let record = projectWindowRecord(selfId);
+  if (record && !(await chrome.windows.get(record.browserId).catch(() => null))) return closeSelf();
+  if (!record) {
+    const self = await chrome.windows.get(selfId).catch(() => null);
+    if (!self) return null;
+    const taken = new Set(session.projectWindows.map((p) => p.browserId));
+    const free = (await chrome.windows.getAll({ windowTypes: ['normal'] })).flatMap((w) =>
+      w.id !== undefined && !taken.has(w.id)
+        ? [{ id: w.id, maximized: w.state === 'maximized', left: w.left ?? 0, top: w.top ?? 0, width: w.width ?? 0, height: w.height ?? 0 }]
+        : [],
+    );
+    const browser = nearestWindow({ left: self.left ?? 0, top: self.top ?? 0, width: self.width ?? 0, height: self.height ?? 0 }, free);
+    if (!browser) return closeSelf();
+    record = { id: selfId, browserId: browser.id, wasMaximized: browser.maximized };
+    session.projectWindows = [...session.projectWindows, record];
     saveSession();
   }
-  if (width !== undefined) {
-    local.projectWindowWidth = clampWindowWidth(width, area.width);
-    saveLocal('projectWindowWidth');
+  if (browserMaximized && !record.wasMaximized) {
+    // The owner maximized Brave while they were together: it gets that back when the list closes.
+    record.wasMaximized = true;
+    saveSession();
   }
-  const { list, browser } = dockLayout(area, await sidebarSide(), local.projectWindowWidth);
-  await chrome.windows.update(selfId, { state: 'normal', ...list });
-  await chrome.windows.update(record.browserId, { state: 'normal', ...browser }).catch(() => undefined);
-  return list.width;
+  return { browserId: record.browserId, width: local.projectWindowWidth, side: await sidebarSide() };
 }
 
-async function closeProjectWindow(): Promise<void> {
-  const open = await projectWindowOpen();
-  if (open?.id !== undefined) await chrome.windows.remove(open.id).catch(() => undefined); // onWindowRemoved restores Brave
+/** The owner dragged a project window to a new width: the next one opens at it too. */
+function setProjectWindowWidth(width: number): number {
+  local.projectWindowWidth = clampWindowWidth(width);
+  saveLocal('projectWindowWidth');
+  return local.projectWindowWidth;
+}
+
+async function closeProjectWindows(): Promise<void> {
+  const ids = session.projectWindows.map((p) => p.id);
+  // onWindowRemoved gives each Brave window its screen back.
+  await Promise.all(ids.map((id) => chrome.windows.remove(id).catch(() => forgetProjectWindow(id))));
 }
 
 /** The "Open the project row" key: the row of projects under the toolbar button. */
@@ -864,8 +939,12 @@ async function handleMessage(message: Message): Promise<unknown> {
       return closeTab(message.tabId);
     case 'openProjectWindow':
       return openProjectWindow(message.windowId);
+    case 'toggleProjectWindow':
+      return toggleProjectWindow(message.windowId);
     case 'dockWindow':
-      return dockProjectWindow(message.selfId, message.area, message.width);
+      return attachProjectWindow(message.selfId, message.browserMaximized === true);
+    case 'setProjectWindowWidth':
+      return setProjectWindowWidth(message.width);
   }
 }
 
@@ -1265,17 +1344,17 @@ function onWindowCreated(win: chrome.windows.Window): void {
 }
 
 function onWindowRemoved(windowId: number): void {
-  const pw = session.projectWindow;
-  if (pw?.id === windowId) {
-    // The project window closed: Brave gets its whole screen back, maximized if it was.
-    session.projectWindow = null;
-    saveSession();
-    if (pw.wasMaximized) void chrome.windows.update(pw.browserId, { state: 'maximized' }).catch(() => undefined);
-  } else if (pw?.browserId === windowId) {
-    // The Brave window beside it closed: the project window goes with it.
-    session.projectWindow = null;
-    saveSession();
-    void chrome.windows.remove(pw.id).catch(() => undefined);
+  const list = projectWindowRecord(windowId);
+  if (list) {
+    // A project window closed: its Brave window gets its whole screen back, maximized if it was.
+    forgetProjectWindow(windowId);
+    if (list.wasMaximized) void chrome.windows.update(list.browserId, { state: 'maximized' }).catch(() => undefined);
+  }
+  const owner = projectWindowOfBrowser(windowId);
+  if (owner) {
+    // A Brave window closed: its project window goes with it.
+    forgetProjectWindow(owner.id);
+    void chrome.windows.remove(owner.id).catch(() => undefined);
   }
   closingWindows.delete(windowId);
   const entry = settling.get(windowId);
@@ -1319,10 +1398,10 @@ chrome.tabGroups.onCreated.addListener(listen(onGroupCreated));
 chrome.tabGroups.onUpdated.addListener(listen(onGroupUpdated));
 chrome.tabGroups.onRemoved.addListener(listen(onGroupRemoved));
 
-// With "a narrow project window" chosen, the toolbar button (and its key) opens it.
+// With "a narrow project window" chosen, the toolbar button (and its key) opens or closes this window's own one.
 chrome.action.onClicked.addListener((tab: chrome.tabs.Tab) => {
   init()
-    .then(() => exclusive(() => openProjectWindow(tab.windowId)))
+    .then(() => exclusive(() => toggleProjectWindow(tab.windowId)))
     .catch(report);
 });
 

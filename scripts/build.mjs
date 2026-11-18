@@ -3,18 +3,19 @@
 
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const src = join(root, 'src');
-const dist = join(root, 'dist');
+// DIST_DIR builds somewhere else (the tests use it too), so a dist/ loaded in your own browser is not touched.
+const dist = process.env.DIST_DIR ? resolve(root, process.env.DIST_DIR) : join(root, 'dist');
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 
 const tsc = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
-execFileSync(process.execPath, [tsc, '-p', join(root, 'tsconfig.build.json')], { stdio: 'inherit', cwd: root });
+execFileSync(process.execPath, [tsc, '-p', join(root, 'tsconfig.build.json'), '--outDir', dist], { stdio: 'inherit', cwd: root });
 
 for (const file of [
   'panel.html',
@@ -37,4 +38,4 @@ const manifest = JSON.parse(readFileSync(join(src, 'manifest.json'), 'utf8'));
 manifest.version = pkg.version;
 writeFileSync(join(dist, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
-console.log(`Built Project workspaces ${pkg.version} into dist/`);
+console.log(`Built Project workspaces ${pkg.version} into ${dist}`);

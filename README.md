@@ -56,7 +56,7 @@ Private by design: no network requests, no analytics, no code from outside. See 
 - **Your own icons:** a name that starts with an emoji ("🔵 Admin", "🛒 Shopping") shows that emoji in the list instead of the colour dot.
 - **Hands off your tabs:** it never reloads tabs or puts them to sleep. It closes a tab only when you ask: ✕ on a tab in the list, or "Close this tab" on the warning.
 - **Works with Brave's vertical tabs:** each project becomes one row there, as narrow as you like.
-- **Narrow project window:** the whole list in a small window of its own beside Brave, narrower than the side panel can be (300 px to start, drag to change). Switch back to the side panel at any time.
+- **Narrow project window:** the whole list in a small window of its own, attached to the side of its Brave window, narrower than the side panel can be (300 px to start, drag to change). Each Brave window has its own, and it stays attached: move, resize, maximize or minimize Brave and the list goes along. Switch back to the side panel at any time.
 - **Light on the browser:** title and icon changes cost it almost nothing, saves are batched, and the side panel redraws only the rows that changed.
 
 ## Install
@@ -119,13 +119,20 @@ In the same place, **Show on the right** moves the strip to the right, and **Aut
 
 ## Or: a narrow project window
 
-If you want the full list (tab lists, your tab names, the menu) but narrower than the side panel, use the narrow project window. It is the same list in a small window of its own, at the edge of the screen on the sidebar's side, with Brave beside it.
+If you want the full list (tab lists, your tab names, the menu) but narrower than the side panel, use the narrow project window. It is the same list in a small window of its own, attached to the side of its Brave window, with no gap between them. Each Brave window has its own, with its own projects.
 
 1. Open the settings (the gear at the top of the list).
 2. Under **Behaviour**, set **The toolbar button opens** to **a narrow project window (beside Brave)**, and click **Save changes**.
-3. Click the toolbar button (or press its key). The window opens at 300 px and Brave takes the rest of the screen.
+3. Click the toolbar button (or press its key) in a Brave window. Its project window opens at 300 px, on the sidebar's side: beside a maximized Brave, the list takes a strip at the screen edge and Brave the rest. Click the button again to close it.
 
-Drag the window's edge to change its width: it keeps the new width. To go back, choose **the side panel** in the same place: the window closes, and Brave gets its whole screen back (maximized again if it was).
+The two stay together:
+
+- Drag the edge between them, and both change size. The list keeps its new width for next time.
+- Move or resize Brave, or the list, and the other goes along, to another screen too.
+- Maximize Brave, and the list takes its strip at the screen edge again.
+- Minimize Brave, or bring it to the front from another app, and the list goes with it.
+
+To go back, choose **the side panel** in the same place: the project windows close, and Brave gets its whole screen back (maximized again if it was).
 
 ![The narrow project window at the left edge of the screen, Brave beside it](docs/project-window.png)
 
@@ -134,7 +141,7 @@ Drag the window's edge to change its width: it keeps the new width. To go back, 
 - Extensions cannot hide tabs, so the other projects stay in the tab bar as small folded labels.
 - Extension panels sit on the left or the right, not at the top or the bottom. The project row covers the top.
 - The browser decides how narrow the side panel can get: 400 px in Brave, 360 px in Chrome, and a saved narrower width is ignored. The list fits any width: names end with "..." and the extras hide. For a narrower list, use Brave's vertical tabs or the narrow project window (see above).
-- The narrow project window is a window of its own: Windows shows it in the taskbar and in Alt+Tab, and it follows Windows' light or dark setting.
+- The narrow project window is a window of its own: Windows shows it in the taskbar and in Alt+Tab, and it follows Windows' light or dark setting. It follows Brave when a move ends, not during the drag. Between two screens with different scaling, the two can overlap by a few pixels.
 - An extension may suggest only four keyboard shortcuts. Set the others yourself.
 - Your tab names show in this extension's list and on its warning page. The tab bar keeps each page's own title: changing it there would mean running code inside every site you open.
 - Tabs move only inside their own project in the list. To move a tab to another project, drag it in the tab bar.

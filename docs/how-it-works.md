@@ -11,11 +11,12 @@ Each tab group is a project. Choosing a project opens its group and folds the ot
 | File | Role |
 |---|---|
 | `src/background.ts` | The background worker. Every change to tabs, groups and saved data happens here, one at a time. |
-| `src/panel.ts` | The project list (side panel) and the project row (toolbar popup). It reads tabs and groups, and asks the worker for every change. |
+| `src/panel.ts` | The project list (side panel), the project row (toolbar popup) and the narrow project window. It reads tabs and groups, and asks the worker for every change. |
+| `src/projectWindow.ts` | The narrow project window keeping itself attached to its Brave window. |
 | `src/options.ts` | The settings page. Everything is a draft until Save. |
 | `src/already-open.ts` | The page a new tab shows when its site is already open. |
 | `src/combo.ts` | The dropdown used on the settings page. |
-| `src/lib/` | Pure helpers with unit tests: rules, switch plan, list order, group and tab moves, restore, the already-open check, project cards, tab tracking, tab lists and tab names, storage checks. |
+| `src/lib/` | Pure helpers with unit tests: rules, switch plan, list order, group and tab moves, restore, the already-open check, project cards, tab tracking, tab lists and tab names, storage checks, the project window's layout. |
 
 ## Projects are tab groups
 
@@ -111,9 +112,19 @@ The check runs for tabs that showed no web page yet: a new tab, a link opened in
 
 ## The narrow project window
 
-Brave's side panel cannot be narrower than 400 px, so the list can also live in a popup window of its own (`panel.html?view=window`). With that choice, the toolbar button has no popup and no panel, so its click reaches `chrome.action.onClicked`, and the worker opens the window over Brave. The page then reads its screen's work area (`screen.availLeft` and the rest, the screen without the taskbar) and asks the worker to dock: `dockLayout` (in `src/lib/dock.ts`) puts the list at the edge on the sidebar's side and Brave in the rest. A width the owner drags the window to is saved and used from then on. The list shows the projects of the Brave window used last.
+Brave's side panel cannot be narrower than 400 px, so the list can also live in a popup window of its own (`panel.html?view=window`). Each Brave window can have one, and it lists that window's projects. With that choice, the toolbar button has no popup and no panel, so its click reaches `chrome.action.onClicked`, and the worker opens that window's project window over it, or closes it when it is open. The worker keeps one record per project window: its id, its Brave window, and whether that window was maximized (it is maximized again when the list closes). A project window Brave brings back after a restart has lost its Brave window, because window ids change; it takes the nearest Brave window that has none (`nearestWindow`).
 
-When the window closes, Brave is maximized again if it was before. Choosing the side panel again closes the window; a window Brave restores after that is closed too, and one restored while the choice is still on is adopted.
+The page then keeps the pair together itself (`src/projectWindow.ts`), with the layout worked out by pure helpers in `src/lib/dock.ts`. The window the owner moved or resized leads, and the other follows:
+
+- `followBrowser`: Brave moved or resized. The list goes beside it, at its height. When Brave's edge next to the list was dragged and the list sits at the screen edge, the list takes the new room instead. A list that would leave the screen stays at the edge and pushes Brave's edge.
+- `followList`: the list moved or resized. Brave goes along, keeping its width, or its far edge when the edge between them was dragged.
+- `dockLayout`: Brave maximized, or the list opened beside a maximized Brave. The list takes a strip at the screen edge on the sidebar's side, Brave the rest of the work area (`screen.availLeft` and the rest: the screen without the taskbar).
+
+When Brave is on another screen, the list first steps onto it, inside Brave's edge, so the page learns that screen's work area, and then places both. The page's own moves fire `chrome.windows.onBoundsChanged` too: a window that is where the page put it is left alone.
+
+Every rectangle is worked out as what shows of a window. Windows gives each window an invisible border for resizing (7 px on the left, right and bottom at 100 %, none at the top), and windows are placed by their outer box, so two windows placed edge to edge show a gap of two borders. The page measures the border from inside its own window (`frameInset`: its outer width less the width its page gets, less the 1 px line that shows), measures it again after every resize (it changes with the screen's scale), and places both windows so their visible edges touch.
+
+Focus and minimizing follow `chrome.windows.onFocusChanged`: when one of the pair comes to the front from another app, the other is brought up behind it, and the first gets the focus back. When Brave is minimized, the list is too, and it comes back with Brave. A list the owner minimized alone stays down.
 
 ## Staying light
 
@@ -132,6 +143,8 @@ The side panel:
 - applies smaller news (a new title, another active tab, a group recoloured or folded, saved names) to what it already holds;
 - keeps every row whose content did not change, so a new title redraws one row, at most every 0.4 seconds;
 - draws nothing while it is hidden.
+
+The narrow project window acts only on its own two windows: their moves, and focus coming to them from another app. It places a window only when that window is not already where it belongs.
 
 ## Testing
 

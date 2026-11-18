@@ -24,6 +24,10 @@ npm run smoke        # the real extension in Chromium, throwaway profile
 
 Run `npm run smoke:brave` too if you have Brave installed.
 
+If you load `dist/` in the browser you use every day, build and test somewhere else, so your own copy is not changed under it: `DIST_DIR=.tmp/dist-dev` works for `node scripts/build.mjs` and for the smoke tests.
+
+The narrow project window has a part the headless tests cannot see: Windows' invisible window borders, focus and minimizing. After changing `src/projectWindow.ts` or `src/lib/dock.ts`, try it on a real screen (on Windows, at 100 % and at another scale if you have one): no gap between the list and Brave, the pair follows a move or a maximize, and minimizing or bringing one to the front takes the other along.
+
 When you change how something behaves, add or change a unit test for the helper and, if it is visible in the browser, a step in the smoke test (`test/smoke/`).
 
 ## Releases

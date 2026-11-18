@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 /** Helpers for the smoke test: a local page server, the browser, and the real side panel. */
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-export const DIST = path.join(ROOT, 'dist');
+/** The built extension: dist/, or DIST_DIR when the build went somewhere else. */
+export const DIST = process.env['DIST_DIR'] ? path.resolve(ROOT, process.env['DIST_DIR']) : path.join(ROOT, 'dist');
 /** Test-only helper extension: reopens a closed window the way Ctrl+Shift+T does. */
 export const HELPER = path.join(ROOT, 'test', 'helper-ext');
 
