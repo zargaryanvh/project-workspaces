@@ -56,7 +56,11 @@ export function isMessage(value: unknown): value is Message {
 /** Sends a request to the background worker and throws its error, if any. */
 export async function send(message: Message): Promise<unknown> {
   const reply = (await chrome.runtime.sendMessage(message)) as Reply | undefined;
-  if (!reply) throw new Error('The extension did not answer. Try again.');
+  // No answer usually means the page is newer than the background worker: the
+  // files were updated on disk, and the worker runs the old code until a reload.
+  if (!reply) {
+    throw new Error('The extension did not answer. If you just updated it, reload it on the extensions page, then try again.');
+  }
   if (!reply.ok) throw new Error(reply.error);
   return reply.result;
 }
