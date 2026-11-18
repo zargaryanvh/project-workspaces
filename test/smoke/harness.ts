@@ -328,9 +328,38 @@ export function panelText(driver: Page, selector: string): Promise<string> {
   }, selector);
 }
 
+export interface PanelTabRow {
+  id: number;
+  text: string;
+  current: boolean;
+  named: boolean;
+}
+
+/** The tab list under a project in the side panel, or null while it is closed. */
+export function panelTabs(driver: Page, title: string): Promise<PanelTabRow[] | null> {
+  return driver.evaluate((title) => {
+    const view = chrome.extension.getViews().find((w) => w.location.pathname.endsWith('/panel.html'));
+    if (!view) return null;
+    const doc = view.document;
+    const row = [...doc.querySelectorAll<HTMLElement>('#list .row')].find(
+      (r) => [r.querySelector('.dot.emoji')?.textContent, r.querySelector('.name')?.textContent].filter(Boolean).join(' ') === title,
+    );
+    const list = row?.dataset.group ? doc.querySelector(`#list .tabs[data-group="${row.dataset.group}"]`) : null;
+    if (!list) return null;
+    return [...list.querySelectorAll<HTMLElement>('.tab-row')].map((r) => ({
+      id: Number(r.dataset.tab),
+      text: r.querySelector('.tab-name')?.textContent ?? '',
+      current: r.classList.contains('current'),
+      named: r.classList.contains('named'),
+    }));
+  }, title);
+}
+
 type PanelTarget =
   | { kind: 'project'; title: string }
   | { kind: 'more'; title: string }
+  | { kind: 'twisty'; title: string }
+  | { kind: 'tab'; text: string; part: 'main' | 'rename' | 'close' }
   | { kind: 'button'; text: string; scope: string }
   | { kind: 'swatch'; color: string }
   | { kind: 'selector'; selector: string };
@@ -351,6 +380,14 @@ export function panelClick(driver: Page, target: PanelTarget): Promise<void> {
           return row(target.title)?.querySelector<HTMLElement>('.main') ?? null;
         case 'more':
           return row(target.title)?.querySelector<HTMLElement>('.more') ?? null;
+        case 'twisty':
+          return row(target.title)?.querySelector<HTMLElement>('.twisty') ?? null;
+        case 'tab': {
+          const tabRow = [...doc.querySelectorAll<HTMLElement>('#list .tab-row')].find(
+            (r) => r.querySelector('.tab-name')?.textContent === target.text,
+          );
+          return tabRow?.querySelector<HTMLElement>(`.tab-${target.part}`) ?? null;
+        }
         case 'button':
           return (
             [...doc.querySelectorAll<HTMLButtonElement>(`${target.scope} button`)].find(

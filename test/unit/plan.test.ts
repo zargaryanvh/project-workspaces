@@ -52,6 +52,18 @@ test('after a Brave restart the old tab id is gone, so the tab is found by its a
   expect(plan?.activateTabId).toBe(4);
 });
 
+test('a tab picked in the tab list is the one shown, also in the open project', () => {
+  const lastActive = { tabId: 3, url: tabs[2]!.url };
+  expect(planSwitch({ windowId: W, groupId: 20, groups, tabs, lastActive, tabId: 4 })?.activateTabId).toBe(4);
+  expect(planSwitch({ windowId: W, groupId: 10, groups, tabs, tabId: 2 })).toEqual({
+    activateTabId: 2,
+    expandGroupId: null,
+    collapseGroupIds: [30],
+  });
+  expect(planSwitch({ windowId: W, groupId: 10, groups, tabs, tabId: 1 })?.activateTabId, 'already showing').toBeNull();
+  expect(planSwitch({ windowId: W, groupId: 20, groups, tabs, tabId: 5 })?.activateTabId, 'not in the project').toBe(3);
+});
+
 test('a remembered tab that is not in the project is ignored', () => {
   const plan = planSwitch({ windowId: W, groupId: 20, groups, tabs, lastActive: { tabId: 1, url: tabs[0]!.url } });
   expect(plan?.activateTabId).toBe(3);

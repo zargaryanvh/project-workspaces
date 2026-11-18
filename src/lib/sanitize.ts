@@ -1,7 +1,11 @@
 import { normalizeRuleHost } from './rules.js';
+import { cleanTabName, MAX_TAB_NAMES, type NameLinks } from './tabNames.js';
 import { cleanTitle, projectKey } from './titles.js';
-import type { GroupColor, LastActive, LocalState, Rule, Settings, StoredProject } from './types.js';
+import type { GroupColor, LastActive, LocalState, Rule, Settings, StoredProject, TabName } from './types.js';
 import { GROUP_COLORS } from './types.js';
+
+/** At most this many projects keep their tab list open. */
+export const MAX_EXPANDED = 200;
 
 /**
  * Storage can hold anything (an older version, a hand edit). These turn what is
@@ -82,6 +86,44 @@ export function sanitizeLastActive(value: unknown): Record<string, LastActive> {
   return out;
 }
 
+export function sanitizeTabNames(value: unknown): TabName[] {
+  if (!Array.isArray(value)) return [];
+  const out: TabName[] = [];
+  const ids = new Set<string>();
+  for (const item of value) {
+    if (!isRecord(item) || typeof item.id !== 'string' || !item.id || ids.has(item.id)) continue;
+    const name = typeof item.name === 'string' ? cleanTabName(item.name) : '';
+    if (!name) continue;
+    ids.add(item.id);
+    out.push({
+      id: item.id,
+      name,
+      home: typeof item.home === 'string' ? item.home : '',
+      last: typeof item.last === 'string' ? item.last : '',
+      seen: typeof item.seen === 'number' && Number.isFinite(item.seen) ? item.seen : 0,
+    });
+  }
+  return out.slice(-MAX_TAB_NAMES);
+}
+
+/** Project keys whose tab list is open: no blanks, no repeats. */
+export function sanitizeExpanded(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out = new Set<string>();
+  for (const item of value) if (typeof item === 'string' && item) out.add(item);
+  return [...out].slice(-MAX_EXPANDED);
+}
+
+/** Which tab shows which name (chrome.storage.session). */
+export function sanitizeNameLinks(value: unknown): NameLinks {
+  if (!isRecord(value)) return {};
+  const out: NameLinks = {};
+  for (const [tabId, nameId] of Object.entries(value)) {
+    if (/^\d+$/.test(tabId) && typeof nameId === 'string' && nameId) out[tabId] = nameId;
+  }
+  return out;
+}
+
 export function sanitizeLocal(raw: unknown): LocalState {
   const value = isRecord(raw) ? raw : {};
   return {
@@ -90,5 +132,7 @@ export function sanitizeLocal(raw: unknown): LocalState {
     lastActive: sanitizeLastActive(value.lastActive),
     openProjects: sanitizeOpenProjects(value.openProjects),
     settings: sanitizeSettings(value.settings),
+    tabNames: sanitizeTabNames(value.tabNames),
+    expanded: sanitizeExpanded(value.expanded),
   };
 }

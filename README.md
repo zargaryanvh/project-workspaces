@@ -25,6 +25,10 @@ Private by design: no network requests, no analytics, no code from outside. See 
   </tr>
 </table>
 
+**See a project's tabs** with the arrow next to it, without opening the project. Click a tab to go to it. Point at a tab for ✎, to give it a name of your own (for example, which account a mail tab is), and ✕, to close it. Drag tabs to change their order; the tab bar follows.
+
+![The tabs of two projects under them, two of them with names of their own](docs/tab-list.png)
+
 **The project row** opens under the toolbar button, for quick switching. Press 1 to 9 to open a project.
 
 ![The project row under the toolbar button](docs/project-row.png)
@@ -41,6 +45,8 @@ Private by design: no network requests, no analytics, no code from outside. See 
 
 - **Project list** in the side panel, in the same order as the tab bar. Drag a project by its grip to reorder it; the tab bar follows, and dragging a group in the tab bar moves it in the list.
 - **One project at a time.** Opening a project folds the other groups. Opening a folded group or one of its tabs from the tab bar does the same. You can turn this off.
+- **Tab lists:** the arrow next to a project shows its tabs under it, without opening the project. Click a tab to go there. Only the arrow opens or closes a list, and an open list stays open, also after a restart.
+- **Your own tab names:** ✎ on a tab gives it a name for the list, like `Personal` and `Team` for two mail accounts. The name stays with the tab while it browses that site, and comes back after a restart. The warning page shows it too.
 - **Keys:** Alt+1 to Alt+4 open projects 1 to 4. Project 5 to 9, Next project, Previous project and Open the project row can be set on the shortcuts page.
 - **Project row:** a row of project labels under the toolbar button, for quick switching. Press 1 to 9 to open a project.
 - **Addresses per project:** a tab that opens `app.example.com`, `*.example.com` or `localhost:3000` moves to its project. Saving new addresses also sorts matching tabs that are already open. A tab you put in a group yourself is never moved.
@@ -48,7 +54,7 @@ Private by design: no network requests, no analytics, no code from outside. See 
 - **Reopened windows** (Ctrl+Shift+T) and browser restarts get back the project that was open, on the tab you used last.
 - **Staging projects:** a name that starts with 🟠 gets the orange group colour.
 - **Your own icons:** a name that starts with an emoji ("🔵 Admin", "🛒 Shopping") shows that emoji in the list instead of the colour dot.
-- **Hands off your tabs:** it never reloads tabs or puts them to sleep. It closes a tab only when you click "Close this tab" on the warning.
+- **Hands off your tabs:** it never reloads tabs or puts them to sleep. It closes a tab only when you ask: ✕ on a tab in the list, or "Close this tab" on the warning.
 - **Works with Brave's vertical tabs:** each project becomes one row there, as narrow as you like.
 
 ## Install
@@ -75,6 +81,7 @@ Then load the `dist` folder as above. After a change, run `npm run build` again 
 2. Click the extension's button. The list opens in the side panel.
 3. Click a project, or press its key. Its tabs show; the other groups fold.
 4. Click **⋯** next to a project to rename it, change its colour, move it, or delete it. Deleting only removes the group; every tab stays open.
+5. Click the arrow at the left of a project to see its tabs. Point at a tab: **✎** gives it a name of your own (leave the name empty to show the page title again), **✕** closes it. Drag a tab to move it inside its project.
 
 ## Settings
 
@@ -114,6 +121,8 @@ In the same place, **Show on the right** moves the strip to the right, and **Aut
 - Extension panels sit on the left or the right, not at the top or the bottom. The project row covers the top.
 - The browser decides how narrow the side panel can get (Brave: about 400 px). The list fits any width: names end with "..." and the extras hide. For a narrower list, use Brave's vertical tabs (see above).
 - An extension may suggest only four keyboard shortcuts. Set the others yourself.
+- Your tab names show in this extension's list and on its warning page. The tab bar keeps each page's own title: changing it there would mean running code inside every site you open.
+- Tabs move only inside their own project in the list. To move a tab to another project, drag it in the tab bar.
 - If the browser's Memory Saver is on, the browser may put tabs you have not used for a while to sleep.
 
 ## Browser support
@@ -131,7 +140,7 @@ npm run smoke
 ```
 
 - `npm test` runs the unit tests for the pure parts in `src/lib/`.
-- `npm run smoke` loads `dist/` into Chromium with a throwaway profile and drives the real side panel, the settings page, the project row, the warning page, Ctrl+Shift+T and a browser restart. It builds first.
+- `npm run smoke` loads `dist/` into Chromium with a throwaway profile and drives the real side panel and its tab lists, the settings page, the project row, the warning page, Ctrl+Shift+T and a browser restart. It builds first.
 - `npm run smoke:brave` runs the same tests in an installed Brave (set `BRAVE_PATH` if it is not in the usual place). It never touches your own profile.
 - GitHub Actions run the type check, the unit tests and the Chromium smoke tests on every push. Pushing a tag like `v0.2.0` builds the extension and attaches a zip to a new release.
 

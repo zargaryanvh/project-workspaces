@@ -60,6 +60,23 @@ export interface LastActive {
   url: string;
 }
 
+/**
+ * A name the owner gave a tab. The project list shows it instead of the page
+ * title; the tab bar keeps the title. Tab ids change after a restart, so the
+ * name is found again by address.
+ */
+export interface TabName {
+  /** Opaque and permanent. */
+  id: string;
+  name: string;
+  /** Where the tab got its name (no ? or #). A tab that opens it later gets the name back. */
+  home: string;
+  /** The address the named tab showed last (no ? or #). Finds the tab again after a restart. */
+  last: string;
+  /** When the name was given or last found a tab (ms). When the list is full, the oldest unused name goes. */
+  seen: number;
+}
+
 /** Everything kept in chrome.storage.local. */
 export interface LocalState {
   projects: StoredProject[];
@@ -72,6 +89,10 @@ export interface LocalState {
    */
   openProjects: Record<string, string>;
   settings: Settings;
+  /** Names the owner gave tabs. */
+  tabNames: TabName[];
+  /** Projects whose tab list is open in the side panel, by projectKey(title). Only the arrow changes this. */
+  expanded: string[];
 }
 
 /** A tab group as the pure helpers see it. */

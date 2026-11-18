@@ -33,3 +33,24 @@ export function groupMoveIndex(
   const index = start < targetStart ? targetStart - moving.length : targetStart;
   return index === start ? null : index;
 }
+
+/**
+ * The index to give chrome.tabs.move so that a tab lands right before another
+ * tab of its group (beforeTabId), or last in its group (null). The index is
+ * the tab's final position. A group's tabs sit side by side and the group
+ * keeps its place, so the tab stays inside its group. Null when nothing has to
+ * move, or when the tab is in no group or the other tab is not in its group.
+ */
+export function tabMoveIndex(tabs: readonly TabInfo[], movingTabId: number, beforeTabId: number | null): number | null {
+  const moving = tabs.find((t) => t.id === movingTabId);
+  if (!moving || moving.groupId === NO_GROUP || beforeTabId === movingTabId) return null;
+  const group = tabs
+    .filter((t) => t.windowId === moving.windowId && t.groupId === moving.groupId)
+    .sort((a, b) => a.index - b.index);
+  const start = group[0]?.index ?? moving.index;
+  const rest = group.filter((t) => t.id !== movingTabId);
+  const at = beforeTabId === null ? rest.length : rest.findIndex((t) => t.id === beforeTabId);
+  if (at === -1) return null;
+  const index = start + at;
+  return index === moving.index ? null : index;
+}

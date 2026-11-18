@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { DEFAULT_SETTINGS, sanitizeLocal, sanitizeRules } from '../../src/lib/sanitize.js';
+import { DEFAULT_SETTINGS, sanitizeLocal, sanitizeNameLinks, sanitizeRules } from '../../src/lib/sanitize.js';
 import { cleanTitle, defaultColorFor, isStagingTitle, leadingEmoji, projectKey, withStagingMark } from '../../src/lib/titles.js';
 
 test.describe('titles', () => {
@@ -48,6 +48,8 @@ test.describe('stored data', () => {
         lastActive: {},
         openProjects: {},
         settings: DEFAULT_SETTINGS,
+        tabNames: [],
+        expanded: [],
       });
     }
     expect(DEFAULT_SETTINGS).toEqual({ follow: true, surface: 'sidePanel', duplicateCheck: true });
@@ -74,6 +76,27 @@ test.describe('stored data', () => {
     ]);
     expect(state.lastActive).toEqual({ admin: { tabId: 4, url: 'https://a' } });
     expect(state.settings).toEqual({ follow: false, surface: 'sidePanel', duplicateCheck: true });
+  });
+
+  test('tab names, open tab lists and name links are tidied', () => {
+    const state = sanitizeLocal({
+      tabNames: [
+        { id: 'a', name: '  Work  account ', home: 'https://m.example/u/1/', last: 'https://m.example/u/1/x', seen: 5 },
+        { id: 'a', name: 'Repeated id', home: '', last: '', seen: 1 },
+        { id: 'b', name: '   ', home: '', last: '', seen: 1 },
+        { id: '', name: 'No id' },
+        { id: 'c', name: 'Bare' },
+        'junk',
+      ],
+      expanded: ['admin', 'admin', '', 7, 'web'],
+    });
+    expect(state.tabNames).toEqual([
+      { id: 'a', name: 'Work account', home: 'https://m.example/u/1/', last: 'https://m.example/u/1/x', seen: 5 },
+      { id: 'c', name: 'Bare', home: '', last: '', seen: 0 },
+    ]);
+    expect(state.expanded).toEqual(['admin', 'web']);
+    expect(sanitizeNameLinks({ '12': 'a', x: 'b', '13': 4, '14': '' })).toEqual({ '12': 'a' });
+    expect(sanitizeNameLinks('junk')).toEqual({});
   });
 
   test('rules are tidied: hosts normalised, unusable rules dropped, ids unique', () => {

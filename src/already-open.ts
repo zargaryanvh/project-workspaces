@@ -7,7 +7,8 @@
 import { sameAddress } from './lib/duplicates.js';
 import { send } from './lib/messages.js';
 import { hostKey, urlHost } from './lib/rules.js';
-import { isGroupColor } from './lib/sanitize.js';
+import { isGroupColor, sanitizeNameLinks, sanitizeTabNames } from './lib/sanitize.js';
+import { tabLabels } from './lib/tabNames.js';
 import type { GroupColor } from './lib/types.js';
 import { NO_GROUP } from './lib/types.js';
 import { h, projectLabel } from './ui.js';
@@ -55,7 +56,13 @@ function showError(err: unknown): void {
 }
 
 async function openTabs(): Promise<OpenTab[]> {
-  const tabs = await chrome.tabs.query({ windowType: 'normal' });
+  const [tabs, stored, saved] = await Promise.all([
+    chrome.tabs.query({ windowType: 'normal' }),
+    chrome.storage.local.get('tabNames'),
+    chrome.storage.session.get('tabNameLinks'),
+  ]);
+  // The names given in the project list tell apart tabs of one site (two accounts, say).
+  const names = tabLabels(sanitizeTabNames(stored['tabNames']), sanitizeNameLinks(saved['tabNameLinks']));
   const groupIds = [...new Set(tabs.map((t) => t.groupId).filter((g) => g !== NO_GROUP))];
   const groups = new Map<number, chrome.tabGroups.TabGroup>();
   await Promise.all(
@@ -70,7 +77,7 @@ async function openTabs(): Promise<OpenTab[]> {
       const group = groups.get(t.groupId);
       return {
         id: t.id as number,
-        title: t.title || shortUrl(t.url ?? ''),
+        title: names.get(t.id as number) || t.title || shortUrl(t.url ?? ''),
         url: t.url ?? '',
         windowId: t.windowId,
         index: t.index,
@@ -185,6 +192,9 @@ async function main(): Promise<void> {
   chrome.tabs.onRemoved.addListener(again);
   chrome.tabs.onUpdated.addListener((_id, change) => {
     if (change.url !== undefined || change.title !== undefined || change.groupId !== undefined) again();
+  });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if ((area === 'local' && changes['tabNames']) || (area === 'session' && changes['tabNameLinks'])) again();
   });
 }
 

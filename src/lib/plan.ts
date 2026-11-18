@@ -17,6 +17,8 @@ export interface SwitchInput {
   tabs: readonly TabInfo[];
   /** The tab last used in this project, if the extension saw one. */
   lastActive?: LastActive | undefined;
+  /** A tab of the project to land on (picked in the tab list), instead of the one used last. */
+  tabId?: number | undefined;
   /** False to open the project without folding the others. */
   foldOthers?: boolean;
 }
@@ -38,7 +40,10 @@ export function planSwitch(input: SwitchInput): SwitchPlan | null {
   if (!first) return null;
 
   const active = tabs.find((t) => t.active);
-  const activateTabId = active && active.groupId === groupId ? null : pickTab(inGroup, input.lastActive, first).id;
+  const wanted = input.tabId !== undefined ? inGroup.find((t) => t.id === input.tabId) : undefined;
+  let activateTabId: number | null;
+  if (wanted) activateTabId = active?.id === wanted.id ? null : wanted.id;
+  else activateTabId = active && active.groupId === groupId ? null : pickTab(inGroup, input.lastActive, first).id;
 
   return {
     activateTabId,

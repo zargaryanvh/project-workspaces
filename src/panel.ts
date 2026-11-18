@@ -1,19 +1,22 @@
 /**
  * The project list. Two views of the same list:
  * - the side panel (left or right, wherever Brave's sidebar is): a column with
- *   everything, from switching to making and changing projects;
+ *   everything, from switching to making and changing projects, and under each
+ *   project its tabs, opened with the arrow;
  * - the project row (view=row): a row of project labels under the toolbar
  *   button, to switch quickly.
  * The order is always the tab bar's order. Every change is asked of the
  * background worker.
  */
 
-import { readWindow } from './lib/chromeShapes.js';
+import { toGroupInfo, toTabInfos } from './lib/chromeShapes.js';
 import { buildList, moveTarget, type ListItem } from './lib/list.js';
 import { send } from './lib/messages.js';
-import { sanitizeRules } from './lib/sanitize.js';
+import { sanitizeExpanded, sanitizeNameLinks, sanitizeRules, sanitizeTabNames } from './lib/sanitize.js';
+import { moveTabRow, projectTabRows, shortAddress, tabRowText, type TabForList, type TabRow } from './lib/tabList.js';
+import { cleanTabName, MAX_TAB_NAME_LENGTH, tabLabels } from './lib/tabNames.js';
 import { cleanTitle, isStagingTitle, projectKey, withStagingMark } from './lib/titles.js';
-import { GROUP_COLORS, type GroupColor, type Rule } from './lib/types.js';
+import { GROUP_COLORS, NO_GROUP, type GroupColor, type Rule } from './lib/types.js';
 import { COLOR_NAMES, h, keepFocus, plural, projectLabel } from './ui.js';
 
 const params = new URLSearchParams(location.search);
@@ -27,6 +30,10 @@ const errorEl = document.getElementById('error') as HTMLParagraphElement;
 
 const data = {
   items: [] as ListItem[],
+  /** Each project's tabs, by group id, in tab bar order. */
+  tabs: new Map<number, TabRow[]>(),
+  /** Projects whose tab list is open (project keys), as saved. */
+  expanded: new Set<string>(),
   rules: [] as Rule[],
   shortcuts: new Map<string, string>(),
   /** Selected (highlighted) tabs in this window that can join a project. */
@@ -40,9 +47,18 @@ const ui = {
   deleting: null as { groupId: number; removeRules: boolean } | null,
   creating: null as { value: string; color: GroupColor } | null,
   dragGroupId: null as number | null,
+  /** A tab being dragged in its project's tab list. */
+  dragTab: null as { tabId: number; groupId: number } | null,
+  /** A tab whose name is being typed. */
+  tabRenaming: null as { tabId: number; value: string } | null,
+  /** Groups with no name have nothing to remember their open list by: kept here while the panel is open. */
+  openUntitled: new Set<number>(),
   listWaiting: false,
   error: '',
 };
+
+/** Arrow clicks not saved yet: they show at once and win over what storage says until it agrees. */
+const pendingExpand = new Map<string, boolean>();
 
 let windowId = -1;
 
@@ -58,16 +74,40 @@ function scheduleRefresh(): void {
 async function refresh(): Promise<void> {
   refreshTimer = undefined;
   try {
-    const [{ groups, tabs }, stored, highlighted] = await Promise.all([
-      readWindow(windowId),
-      chrome.storage.local.get(['rules']),
-      chrome.tabs.query({ windowId, highlighted: true }),
+    const [groups, tabs, stored, saved] = await Promise.all([
+      chrome.tabGroups.query({ windowId }),
+      chrome.tabs.query({ windowId }),
+      chrome.storage.local.get(['rules', 'expanded', 'tabNames']),
+      chrome.storage.session.get('tabNameLinks'),
     ]);
     data.rules = sanitizeRules(stored['rules']);
-    data.items = buildList(groups, tabs, windowId);
-    data.selected = highlighted.filter((t) => !t.pinned).length;
+    data.items = buildList(groups.map(toGroupInfo), toTabInfos(tabs), windowId);
+
+    const expanded = new Set(sanitizeExpanded(stored['expanded']));
+    for (const [key, open] of pendingExpand) if (expanded.has(key) === open) pendingExpand.delete(key);
+    data.expanded = expanded;
+    const labels = tabLabels(sanitizeTabNames(stored['tabNames']), sanitizeNameLinks(saved['tabNameLinks']));
+    const forList: TabForList[] = tabs.flatMap((t) =>
+      t.id === undefined
+        ? []
+        : [
+            {
+              id: t.id,
+              groupId: t.groupId ?? NO_GROUP,
+              index: t.index,
+              active: t.active,
+              title: t.title ?? '',
+              url: t.url || t.pendingUrl || '',
+              windowId: t.windowId,
+            },
+          ],
+    );
+    data.tabs = new Map(data.items.map((item) => [item.groupId, projectTabRows(forList, windowId, item.groupId, labels)]));
+
+    data.selected = tabs.filter((t) => t.highlighted && !t.pinned).length;
     data.loaded = true;
     if (ui.menuFor !== null && !data.items.some((i) => i.groupId === ui.menuFor)) closeMenu();
+    if (ui.tabRenaming && !forList.some((t) => t.id === ui.tabRenaming?.tabId)) ui.tabRenaming = null;
     renderFromOutside();
   } catch (err) {
     showError(err);
@@ -191,6 +231,76 @@ function moveBy(item: ListItem, step: -1 | 1): void {
   if (before !== undefined) void moveProject(item.groupId, before);
 }
 
+// ---------------------------------------------------------------- tab lists (the arrow)
+
+function isExpanded(item: ListItem): boolean {
+  if (!item.key) return ui.openUntitled.has(item.groupId);
+  return pendingExpand.get(item.key) ?? data.expanded.has(item.key);
+}
+
+function anyTabListOpen(): boolean {
+  return data.items.some(isExpanded);
+}
+
+/** The arrow: shows or hides a project's tabs. Only this changes it; switching projects never does. */
+function toggleTabs(item: ListItem): void {
+  const open = !isExpanded(item);
+  if (!open && (data.tabs.get(item.groupId) ?? []).some((r) => r.id === ui.tabRenaming?.tabId)) ui.tabRenaming = null;
+  if (!item.key) {
+    if (open) ui.openUntitled.add(item.groupId);
+    else ui.openUntitled.delete(item.groupId);
+    render();
+    return;
+  }
+  const key = item.key;
+  pendingExpand.set(key, open);
+  render();
+  void send({ type: 'expand', key, open }).catch((err: unknown) => {
+    pendingExpand.delete(key);
+    showError(err);
+  });
+}
+
+/** A tab picked in the list: its project opens on it and the others fold. */
+function showTab(row: TabRow): Promise<void> {
+  return act(() => send({ type: 'showTab', tabId: row.id }));
+}
+
+function startTabRename(row: TabRow): void {
+  ui.tabRenaming = { tabId: row.id, value: row.name };
+  render();
+  document.querySelector<HTMLInputElement>('input[data-focus="tab-name"]')?.select();
+}
+
+function saveTabName(tabId: number, value: string): Promise<void> {
+  // Show the new name at once; the next refresh confirms it.
+  for (const rows of data.tabs.values()) {
+    const row = rows.find((r) => r.id === tabId);
+    if (row) row.name = cleanTabName(value);
+  }
+  ui.tabRenaming = null;
+  render();
+  return act(() => send({ type: 'nameTab', tabId, name: value }));
+}
+
+function closeTabRow(groupId: number, row: TabRow): Promise<void> {
+  const rows = data.tabs.get(groupId);
+  if (rows) data.tabs.set(groupId, rows.filter((r) => r.id !== row.id));
+  if (ui.tabRenaming?.tabId === row.id) ui.tabRenaming = null;
+  render();
+  return act(() => send({ type: 'closeTab', tabId: row.id }));
+}
+
+/** Moves a tab in its project's list, right before another tab or last (null); the tab bar follows. */
+function moveTabInList(groupId: number, tabId: number, beforeTabId: number | null): Promise<void> {
+  const rows = data.tabs.get(groupId);
+  if (rows) {
+    data.tabs.set(groupId, moveTabRow(rows, tabId, beforeTabId));
+    render();
+  }
+  return act(() => send({ type: 'moveTab', tabId, beforeTabId }));
+}
+
 // ---------------------------------------------------------------- drag to reorder (the grip)
 
 function dropSide(e: DragEvent): 'before' | 'after' {
@@ -235,6 +345,48 @@ function onDrop(e: DragEvent, item: ListItem): void {
 
 function onDragEnd(): void {
   ui.dragGroupId = null;
+  clearDropMarks();
+  for (const el of listEl.querySelectorAll('.dragging')) el.classList.remove('dragging');
+  if (ui.listWaiting) render();
+}
+
+// ---------------------------------------------------------------- drag a tab inside its project
+
+function onTabDragStart(e: DragEvent, groupId: number, row: TabRow): void {
+  e.stopPropagation();
+  ui.dragTab = { tabId: row.id, groupId };
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', tabRowText(row));
+  }
+  (e.currentTarget as HTMLElement).classList.add('dragging');
+}
+
+function onTabDragOver(e: DragEvent, groupId: number, row: TabRow): void {
+  const drag = ui.dragTab;
+  if (!drag || drag.groupId !== groupId || drag.tabId === row.id) return; // only inside its own project
+  e.preventDefault();
+  e.stopPropagation();
+  clearDropMarks();
+  (e.currentTarget as HTMLElement).classList.add(dropSide(e) === 'before' ? 'drop-before' : 'drop-after');
+}
+
+function onTabDrop(e: DragEvent, groupId: number, row: TabRow): void {
+  const drag = ui.dragTab;
+  if (!drag || drag.groupId !== groupId) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const side = dropSide(e);
+  onTabDragEnd();
+  if (drag.tabId === row.id) return;
+  const others = (data.tabs.get(groupId) ?? []).filter((r) => r.id !== drag.tabId);
+  const at = others.findIndex((r) => r.id === row.id);
+  const before = side === 'before' ? row.id : (others[at + 1]?.id ?? null);
+  void moveTabInList(groupId, drag.tabId, before);
+}
+
+function onTabDragEnd(): void {
+  ui.dragTab = null;
   clearDropMarks();
   for (const el of listEl.querySelectorAll('.dragging')) el.classList.remove('dragging');
   if (ui.listWaiting) render();
@@ -293,7 +445,7 @@ function renderRow(): void {
 
 function renderList(): void {
   emptyEl.hidden = !data.loaded || data.items.length > 0;
-  if (ui.dragGroupId !== null) {
+  if (ui.dragGroupId !== null || ui.dragTab !== null) {
     ui.listWaiting = true; // redrawing now would cancel the drag
     return;
   }
@@ -306,6 +458,8 @@ function renderList(): void {
     ui.deleting,
     data.items.map((i) => (i.number !== null ? (data.shortcuts.get(`project-${i.number}`) ?? '') : '')),
     deletingKey ? data.rules.filter((r) => projectKey(r.project) === deletingKey).length : 0,
+    data.items.map((i) => (isExpanded(i) ? (data.tabs.get(i.groupId) ?? []) : null)),
+    ui.tabRenaming,
   ]);
   if (key === listKey) return; // nothing to show differently: keep the same elements
   listKey = key;
@@ -313,6 +467,7 @@ function renderList(): void {
   data.items.forEach((item, index) => {
     rows.push(renderItem(item));
     if (ui.menuFor === item.groupId) rows.push(renderMenu(item, index));
+    if (isExpanded(item)) rows.push(renderTabs(item));
   });
   listEl.replaceChildren(...rows);
 }
@@ -322,6 +477,8 @@ function renderItem(item: ListItem): HTMLLIElement {
   const label = projectLabel(name); // "🔵 Admin" shows its circle once, in the dot's place
   const tabs = plural(item.tabCount, 'tab', 'tabs');
   const shortcut = item.number !== null ? data.shortcuts.get(`project-${item.number}`) : undefined;
+  const open = isExpanded(item);
+  const arrowLabel = open ? `Hide the tabs of ${name}` : `Show the tabs of ${name}`;
   const classes = ['row', item.current && 'current', ui.menuFor === item.groupId && 'menu-open'].filter(Boolean);
   return h(
     'li',
@@ -339,6 +496,18 @@ function renderItem(item: ListItem): HTMLLIElement {
       ondragstart: (e: DragEvent) => onDragStart(e, item),
       ondragend: onDragEnd,
     }),
+    h(
+      'button',
+      {
+        class: 'twisty',
+        type: 'button',
+        title: arrowLabel,
+        'aria-label': arrowLabel,
+        'aria-expanded': String(open),
+        onclick: () => toggleTabs(item),
+      },
+      h('span', { class: 'twisty-icon', 'aria-hidden': 'true' }),
+    ),
     h(
       'button',
       {
@@ -365,6 +534,111 @@ function renderItem(item: ListItem): HTMLLIElement {
       },
       '⋯',
     ),
+  );
+}
+
+/** A project's tabs, under its row, in tab bar order. */
+function renderTabs(item: ListItem): HTMLLIElement {
+  const children: HTMLLIElement[] = [];
+  for (const row of data.tabs.get(item.groupId) ?? []) {
+    if (ui.tabRenaming?.tabId === row.id) {
+      children.push(renderTabRename(row, ui.tabRenaming));
+      children.push(h('li', { class: 'tab-hint' }, 'Enter saves. Leave it empty to show the page title.'));
+    } else {
+      children.push(renderTab(item, row));
+    }
+  }
+  return h(
+    'li',
+    { class: 'tabs', 'data-color': item.color, 'data-group': String(item.groupId) },
+    h('ul', { class: 'tab-list', 'aria-label': `Tabs of ${displayName(item)}` }, ...children),
+  );
+}
+
+function renderTab(item: ListItem, row: TabRow): HTMLLIElement {
+  const text = tabRowText(row);
+  const tip = [row.name, row.title, shortAddress(row.url)].filter(Boolean).join('\n');
+  return h(
+    'li',
+    {
+      class: ['tab-row', row.active && 'current', row.name && 'named'].filter(Boolean).join(' '),
+      'data-tab': String(row.id),
+      draggable: ui.tabRenaming === null,
+      ondragstart: (e: DragEvent) => onTabDragStart(e, item.groupId, row),
+      ondragover: (e: DragEvent) => onTabDragOver(e, item.groupId, row),
+      ondrop: (e: DragEvent) => onTabDrop(e, item.groupId, row),
+      ondragend: onTabDragEnd,
+    },
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'tab-main',
+        title: tip,
+        'aria-current': row.active ? 'true' : undefined,
+        onclick: () => void showTab(row),
+      },
+      h('span', { class: 'tab-name' }, text),
+    ),
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'tab-act tab-rename',
+        title: row.name ? 'Rename this tab' : 'Give this tab a name',
+        'aria-label': `Rename ${text}`,
+        onclick: () => startTabRename(row),
+      },
+      '✎',
+    ),
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'tab-act tab-close',
+        title: 'Close this tab',
+        'aria-label': `Close ${text}`,
+        onclick: () => void closeTabRow(item.groupId, row),
+      },
+      '✕',
+    ),
+  );
+}
+
+function renderTabRename(row: TabRow, state: { tabId: number; value: string }): HTMLLIElement {
+  const save = (): void => void saveTabName(row.id, state.value);
+  const cancel = (): void => {
+    ui.tabRenaming = null;
+    render();
+  };
+  return h(
+    'li',
+    { class: 'tab-row editing', 'data-tab': String(row.id) },
+    h('input', {
+      type: 'text',
+      class: 'text tab-input',
+      value: state.value,
+      maxLength: MAX_TAB_NAME_LENGTH,
+      placeholder: row.title || shortAddress(row.url) || 'Tab name',
+      'aria-label': 'Tab name',
+      'data-focus': 'tab-name',
+      oninput: (e: Event) => {
+        state.value = (e.target as HTMLInputElement).value;
+      },
+      onkeydown: (e: KeyboardEvent) => {
+        if (e.key === 'Enter') save();
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          cancel();
+        }
+      },
+    }),
+    h(
+      'button',
+      { type: 'button', class: 'tab-act tab-save', title: 'Save the name', 'aria-label': 'Save the name', onclick: save },
+      '✓',
+    ),
+    h('button', { type: 'button', class: 'tab-act tab-cancel', title: 'Cancel', 'aria-label': 'Cancel', onclick: cancel }, '✕'),
   );
 }
 
@@ -650,13 +924,16 @@ function wireEvents(): void {
   chrome.tabs.onDetached.addListener(scheduleRefresh);
   chrome.tabs.onUpdated.addListener((_tabId, change) => {
     if (change.groupId !== undefined || change.pinned !== undefined) scheduleRefresh();
+    // Titles and addresses show only in open tab lists.
+    else if ((change.title !== undefined || change.url !== undefined) && anyTabListOpen()) scheduleRefresh();
   });
   chrome.tabGroups.onCreated.addListener(scheduleRefresh);
   chrome.tabGroups.onUpdated.addListener(scheduleRefresh);
   chrome.tabGroups.onRemoved.addListener(scheduleRefresh);
   chrome.tabGroups.onMoved.addListener(scheduleRefresh);
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes['rules']) scheduleRefresh();
+    if (area === 'local' && (changes['rules'] || changes['expanded'] || changes['tabNames'])) scheduleRefresh();
+    if (area === 'session' && changes['tabNameLinks']) scheduleRefresh();
   });
   window.addEventListener('focus', () => void refreshShortcuts());
 
@@ -673,9 +950,10 @@ function wireEvents(): void {
       if (e.key === 'Escape') window.close();
       return;
     }
-    if (e.key !== 'Escape' || (ui.menuFor === null && !ui.creating)) return;
+    if (e.key !== 'Escape' || (ui.menuFor === null && !ui.creating && !ui.tabRenaming)) return;
     closeMenu();
     ui.creating = null;
+    ui.tabRenaming = null;
     render();
   });
 }

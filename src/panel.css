@@ -125,7 +125,42 @@ h2 {
   cursor: grabbing;
 }
 
+/* The arrow that shows a project's tabs under it. */
+.twisty {
+  flex: none;
+  width: 18px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+
+.twisty:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.twisty-icon {
+  width: 7px;
+  height: 7px;
+  margin-left: -2px;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.12s;
+}
+
+.twisty[aria-expanded='true'] .twisty-icon {
+  margin: -3px 0 0;
+  transform: rotate(45deg);
+}
+
 .row .main {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -148,10 +183,10 @@ h2 {
   font-weight: 600;
 }
 
-.row.current::before {
+.row.current .main::before {
   content: '';
   position: absolute;
-  left: 18px;
+  left: 1px;
   top: 7px;
   bottom: 7px;
   width: 3px;
@@ -227,6 +262,118 @@ h2 {
 }
 
 .row.drop-after {
+  box-shadow: 0 2px 0 var(--accent);
+}
+
+/* A project's tabs, under its row: a line in the project's colour, like the group line in the tab bar. */
+.tabs {
+  margin: 0 0 6px 25px;
+  padding: 1px 0 1px 7px;
+  border-left: 2px solid var(--dot);
+}
+
+.tab-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tab-row {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  margin: 1px 0;
+  border-radius: 6px;
+}
+
+.tab-row .tab-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+}
+
+.tab-row .tab-main:hover {
+  background: var(--hover);
+}
+
+.tab-row.current .tab-main {
+  background: var(--current);
+}
+
+.tab-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-act {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0;
+}
+
+.tab-row:hover .tab-act,
+.tab-row:focus-within .tab-act,
+.tab-row.editing .tab-act {
+  opacity: 1;
+}
+
+.tab-act:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.tab-close:hover:not(:disabled) {
+  color: var(--danger);
+}
+
+.tab-save {
+  color: var(--accent);
+}
+
+.tab-row.editing {
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.tab-input {
+  min-height: 28px;
+  padding: 3px 8px;
+}
+
+.tab-hint {
+  margin: 0 0 4px 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tab-row.dragging {
+  opacity: 0.5;
+}
+
+.tab-row.drop-before {
+  box-shadow: 0 -2px 0 var(--accent);
+}
+
+.tab-row.drop-after {
   box-shadow: 0 2px 0 var(--accent);
 }
 
@@ -343,8 +490,12 @@ h2 {
   .grip {
     display: none;
   }
-  .row.current::before {
-    left: 1px;
+  .tabs {
+    margin-left: 8px;
+    padding-left: 4px;
+  }
+  .tab-row .tab-main {
+    padding: 3px 4px;
   }
   .row .more {
     width: 22px;

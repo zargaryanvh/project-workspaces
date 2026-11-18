@@ -15,7 +15,7 @@ Each tab group is a project. Choosing a project opens its group and folds the ot
 | `src/options.ts` | The settings page. Everything is a draft until Save. |
 | `src/already-open.ts` | The page a new tab shows when its site is already open. |
 | `src/combo.ts` | The dropdown used on the settings page. |
-| `src/lib/` | Pure helpers with unit tests: rules, switch plan, list order, group moves, restore, the already-open check, project cards, tab tracking, storage checks. |
+| `src/lib/` | Pure helpers with unit tests: rules, switch plan, list order, group and tab moves, restore, the already-open check, project cards, tab tracking, tab lists and tab names, storage checks. |
 
 ## Projects are tab groups
 
@@ -25,9 +25,11 @@ A project is a tab group. Group ids change every time the browser restarts, so n
 - `rules`: the addresses, each with a project name;
 - `lastActive`: the tab last used in each project (its id and address; after a restart the address finds it again);
 - `openProjects`: the project that was open in each window, keyed by the window's set of project names;
-- `settings`.
+- `settings`;
+- `tabNames`: the names given to tabs (see "Tab names" below);
+- `expanded`: the projects whose tab list is open in the side panel.
 
-`chrome.storage.session` keeps bookkeeping that only matters while the browser runs (see "Rules" below).
+`chrome.storage.session` keeps bookkeeping that only matters while the browser runs (see "Rules" below), and `tabNameLinks`: which open tab shows which name.
 
 ## Switching
 
@@ -47,6 +49,21 @@ flowchart LR
 ## Order
 
 The list is always in tab bar order. Moving a project in the list calls `chrome.tabGroups.move`. The browser reads that index as the group's final position, counted without the group itself, and refuses an index inside another group; `groupMoveIndex` (in `src/lib/order.ts`) only returns group edges.
+
+## Tab lists
+
+The arrow next to a project shows its tabs under it, in tab bar order. Only the arrow opens or closes a list; switching projects never does. Clicking a tab switches to its project on that tab (`planSwitch` takes the tab). Dragging a tab calls `chrome.tabs.move` with an index inside the project's own range (`tabMoveIndex` in `src/lib/order.ts`), so the tab never leaves its group; if the browser takes it out anyway, the worker puts it back.
+
+## Tab names
+
+A name belongs to a tab, and the tab bar keeps the page title. Tab ids change after a restart, so each name keeps two addresses, both without the part after `?` or `#`: `home`, where the tab got its name, and `last`, where its tab was last. `linkTabNames` (in `src/lib/tabNames.ts`) matches names to tabs whenever a tab opens, closes or goes to another page:
+
+1. A tab keeps its name while it browses the same site, and `last` follows it.
+2. If it goes to a page that has a free name of its own (the other account of the same site), it shows that one.
+3. A tab that leaves the site leaves its name behind.
+4. A tab with no name takes a free name saved for its address, `home` first, then `last`. That brings names back after a restart, and when the page is opened again.
+
+One name shows on one tab at a time. An empty name removes it.
 
 ## Rules
 

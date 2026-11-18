@@ -3,8 +3,8 @@
  *
  * One project = one tab group. Switching to a project activates a tab in its
  * group, opens the group and folds every other group in that window. Tabs are
- * never closed (except a new duplicate tab, when the owner says so),
- * discarded or reloaded, and other windows are left alone.
+ * never discarded or reloaded, and closed only when the owner says so (a new
+ * duplicate tab, or the ✕ in a tab list). Other windows are left alone.
  *
  * Every change to tabs, groups or the saved data runs here, one at a time
  * (see `exclusive`). The extension's pages only ask.
@@ -20,7 +20,7 @@ import { readWindow, toGroupInfo, toTabInfos } from './lib/chromeShapes.js';
 import { findAlreadyOpen } from './lib/duplicates.js';
 import { buildList, commandTarget } from './lib/list.js';
 import { isMessage, type Message, type Reply } from './lib/messages.js';
-import { groupMoveIndex } from './lib/order.js';
+import { groupMoveIndex, tabMoveIndex } from './lib/order.js';
 import { groupsToFold, planSwitch, type SwitchPlan } from './lib/plan.js';
 import {
   addMissingProjects,
@@ -32,7 +32,15 @@ import {
 } from './lib/projects.js';
 import { openProjectKey, pickOpenAfterRestore, rememberOpen, windowSignature } from './lib/restore.js';
 import { hostKey, isNewSite, matchRule } from './lib/rules.js';
-import { isGroupColor, sanitizeLocal, sanitizeRules, sanitizeSettings } from './lib/sanitize.js';
+import {
+  isGroupColor,
+  MAX_EXPANDED,
+  sanitizeLocal,
+  sanitizeNameLinks,
+  sanitizeRules,
+  sanitizeSettings,
+} from './lib/sanitize.js';
+import { linkTabNames, setTabName, type NameLinks } from './lib/tabNames.js';
 import {
   classifyGroupChange,
   noteGroupChange,
@@ -77,10 +85,15 @@ interface SessionState {
   allowed: Record<string, string>;
 }
 
-type LocalKey = 'projects' | 'lastActive' | 'openProjects';
+type LocalKey = 'projects' | 'lastActive' | 'openProjects' | 'tabNames' | 'expanded';
 
 let local: LocalState = sanitizeLocal(undefined);
 let session: SessionState = { groups: {}, tabs: {}, windows: {}, allowed: {} };
+/**
+ * Which open tab shows which tab name. Kept in chrome.storage.session under its
+ * own key, so the side panel can follow it without hearing every other change.
+ */
+let nameLinks: NameLinks = {};
 let ready: Promise<void> | null = null;
 
 function init(): Promise<void> {
@@ -94,9 +107,13 @@ function init(): Promise<void> {
 }
 
 async function start(): Promise<void> {
-  const [stored, saved] = await Promise.all([chrome.storage.local.get(null), chrome.storage.session.get('state')]);
+  const [stored, saved] = await Promise.all([
+    chrome.storage.local.get(null),
+    chrome.storage.session.get(['state', 'tabNameLinks']),
+  ]);
   local = sanitizeLocal(stored);
   session = readSession(saved['state']);
+  nameLinks = sanitizeNameLinks(saved['tabNameLinks']);
   await catchUp();
   await applySurface().catch(report); // the toolbar button is a nicety: never let it stop the rest
 }
@@ -156,6 +173,7 @@ async function catchUp(): Promise<void> {
     .map((g) => ({ title: g.title ?? '', color: colorOf(g) }));
   setProjects(addMissingProjects(local.projects, named));
   saveSession();
+  relinkNames(tabs);
 }
 
 // ---------------------------------------------------------------- saving
@@ -177,6 +195,8 @@ async function flushLocal(): Promise<void> {
   if (dirtyLocal.has('projects')) items.projects = local.projects;
   if (dirtyLocal.has('lastActive')) items.lastActive = local.lastActive;
   if (dirtyLocal.has('openProjects')) items.openProjects = local.openProjects;
+  if (dirtyLocal.has('tabNames')) items.tabNames = local.tabNames;
+  if (dirtyLocal.has('expanded')) items.expanded = local.expanded;
   dirtyLocal.clear();
   await chrome.storage.local.set(items);
 }
@@ -185,6 +205,53 @@ function saveSession(): void {
   sessionTimer ??= setTimeout(() => {
     sessionTimer = undefined;
     chrome.storage.session.set({ state: session }).catch(report);
+  }, 150);
+}
+
+let linksDirty = false;
+let linksTimer: ReturnType<typeof setTimeout> | undefined;
+
+function saveLinks(): void {
+  linksDirty = true;
+  linksTimer ??= setTimeout(() => void flushLinks().catch(report), 100);
+}
+
+async function flushLinks(): Promise<void> {
+  if (linksTimer !== undefined) clearTimeout(linksTimer);
+  linksTimer = undefined;
+  if (!linksDirty) return;
+  linksDirty = false;
+  await chrome.storage.session.set({ tabNameLinks: nameLinks });
+}
+
+// ---------------------------------------------------------------- tab names
+
+/** Matches the owner's tab names to the open tabs (see linkTabNames). */
+function relinkNames(tabs: readonly chrome.tabs.Tab[]): void {
+  if (local.tabNames.length === 0 && Object.keys(nameLinks).length === 0) return;
+  const seen = tabs.flatMap((t) => (t.id !== undefined && !t.incognito ? [{ id: t.id, url: t.url ?? '' }] : []));
+  const result = linkTabNames(seen, local.tabNames, nameLinks, Date.now());
+  if (result.namesChanged) {
+    local.tabNames = result.names;
+    saveLocal('tabNames');
+  }
+  if (result.linksChanged) {
+    nameLinks = result.links;
+    saveLinks();
+  }
+}
+
+let relinkTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** A tab opened, closed or went to another page: check the names soon (events come in bursts). */
+function scheduleRelink(): void {
+  if (local.tabNames.length === 0) return; // nothing named, nothing to do
+  if (relinkTimer !== undefined) clearTimeout(relinkTimer);
+  relinkTimer = setTimeout(() => {
+    relinkTimer = undefined;
+    init()
+      .then(() => exclusive(async () => relinkNames(await chrome.tabs.query({}))))
+      .catch(report);
   }, 150);
 }
 
@@ -392,13 +459,20 @@ async function openProjectRow(windowId: number | undefined): Promise<void> {
 
 // ---------------------------------------------------------------- switching
 
-/** Shows one project in one window: its group opens, the others fold. */
-async function switchTo(windowId: number, groupId: number): Promise<boolean> {
+/** Shows one project in one window: its group opens (on tabId, if given), the others fold. */
+async function switchTo(windowId: number, groupId: number, tabId?: number): Promise<boolean> {
   const { groups, tabs } = await readWindow(windowId);
   const target = groups.find((g) => g.id === groupId);
   if (!target) return false;
   const key = projectKey(target.title);
-  const plan = planSwitch({ windowId, groupId, groups, tabs, lastActive: key ? local.lastActive[key] : undefined });
+  const plan = planSwitch({
+    windowId,
+    groupId,
+    groups,
+    tabs,
+    tabId,
+    lastActive: key ? local.lastActive[key] : undefined,
+  });
   if (!plan) return false;
   await runPlan(plan);
   session.windows[String(windowId)] = groupId;
@@ -639,7 +713,85 @@ async function handleMessage(message: Message): Promise<unknown> {
       return goToTab(message.tabId, message.closeTabId);
     case 'openAnyway':
       return openAnyway(message.tabId, message.url);
+    case 'expand':
+      return setExpanded(message.key, message.open);
+    case 'showTab':
+      return showTab(message.tabId);
+    case 'nameTab':
+      return nameTab(message.tabId, message.name);
+    case 'moveTab':
+      return moveTab(message.tabId, message.beforeTabId);
+    case 'closeTab':
+      return closeTab(message.tabId);
   }
+}
+
+// ---------------------------------------------------------------- tab lists
+
+/** The arrow in the list opens or closes a project's tab list. Switching never does. */
+function setExpanded(rawKey: string, open: boolean): boolean {
+  const key = projectKey(rawKey);
+  if (!key) return false;
+  if (local.expanded.includes(key) === open) return true;
+  local.expanded = open
+    ? [...local.expanded, key].slice(-MAX_EXPANDED)
+    : local.expanded.filter((k) => k !== key);
+  saveLocal('expanded');
+  return true;
+}
+
+/** A tab picked in a tab list: its project opens on that tab, the others fold. */
+async function showTab(tabId: number): Promise<boolean> {
+  const tab = await chrome.tabs.get(tabId);
+  await chrome.windows.update(tab.windowId, { focused: true }).catch(() => undefined);
+  const groupId = tab.groupId ?? NO_GROUP;
+  if (groupId === NO_GROUP) {
+    await retry(() => chrome.tabs.update(tabId, { active: true }));
+    return true;
+  }
+  return switchTo(tab.windowId, groupId, tabId);
+}
+
+async function nameTab(tabId: number, name: string): Promise<boolean> {
+  const tab = await chrome.tabs.get(tabId);
+  const next = setTabName({
+    names: local.tabNames,
+    links: nameLinks,
+    tab: { id: tabId, url: tab.url ?? '' },
+    name,
+    now: Date.now(),
+    newId: () => crypto.randomUUID(),
+  });
+  local.tabNames = next.names;
+  saveLocal('tabNames');
+  nameLinks = next.links;
+  saveLinks();
+  return true;
+}
+
+/** Moves a tab inside its project; the tab bar order is the list order. */
+async function moveTab(tabId: number, beforeTabId: number | null): Promise<boolean> {
+  const tab = await chrome.tabs.get(tabId);
+  const groupId = tab.groupId ?? NO_GROUP;
+  if (groupId === NO_GROUP) return false;
+  const { tabs } = await readWindow(tab.windowId);
+  const index = tabMoveIndex(tabs, tabId, beforeTabId);
+  if (index === null) return false;
+  markOwnTabMoves([tabId]);
+  await retry(() => chrome.tabs.move(tabId, { index }));
+  const after = await chrome.tabs.get(tabId).catch(() => null);
+  if (after && after.groupId !== groupId) {
+    // The browser took it out of its group on the way: put it back.
+    markOwnTabMoves([tabId]);
+    await retry(() => chrome.tabs.group({ tabIds: tabId, groupId }));
+  }
+  return true;
+}
+
+/** The ✕ on a tab in a tab list: the owner closes that one tab. */
+async function closeTab(tabId: number): Promise<boolean> {
+  await retry(() => chrome.tabs.remove(tabId));
+  return true;
 }
 
 /** Makes a project from the selected tabs (or the active tab) and switches to it. */
@@ -722,6 +874,10 @@ async function deleteProject(groupId: number, removeRules: boolean): Promise<boo
       setProjects(removeProject(local.projects, title));
       delete local.lastActive[key];
       saveLocal('lastActive');
+      if (local.expanded.includes(key)) {
+        local.expanded = local.expanded.filter((k) => k !== key);
+        saveLocal('expanded');
+      }
     }
     if (removeRules) {
       const kept = local.rules.filter((r) => projectKey(r.project) !== key);
@@ -782,6 +938,12 @@ async function commitRename(groupId: number): Promise<void> {
     if (!oldStillOpen) delete local.lastActive[from];
     saveLocal('lastActive');
   }
+  if (from && to && from !== to && local.expanded.includes(from)) {
+    // An open tab list stays open under the new name.
+    const kept = oldStillOpen ? local.expanded : local.expanded.filter((k) => k !== from);
+    local.expanded = kept.includes(to) ? kept : [...kept, to];
+    saveLocal('expanded');
+  }
   track.stableTitle = title;
   saveSession();
   scheduleRemember(group.windowId);
@@ -804,6 +966,7 @@ function onTabCreated(tab: chrome.tabs.Tab): void {
     maybeCheckAlreadyOpen(tab, tab.pendingUrl || tab.url, '');
   }
   saveSession();
+  if (tab.url) scheduleRelink(); // a restored or reopened tab may have a name waiting at its address
 }
 
 function onTabUpdated(tabId: number, change: chrome.tabs.OnUpdatedInfo, tab: chrome.tabs.Tab): void {
@@ -835,6 +998,7 @@ function onTabUpdated(tabId: number, change: chrome.tabs.OnUpdatedInfo, tab: chr
       }
     }
     if (!quiet && isNewSite(before, track.host)) void exclusive(() => applyRules(tabId));
+    scheduleRelink();
   }
 }
 
@@ -867,6 +1031,11 @@ function onTabRemoved(tabId: number, info: chrome.tabs.OnRemovedInfo): void {
   ownTabMoves.delete(tabId);
   checkedNavigation.delete(tabId);
   saveSession();
+  if (nameLinks[String(tabId)] !== undefined) {
+    delete nameLinks[String(tabId)];
+    saveLinks();
+    scheduleRelink(); // its name is free again: another tab at that address may take it
+  }
 }
 
 /** Brave swapped a tab for a pre-rendered one: carry what we know across. */
@@ -874,6 +1043,12 @@ function onTabReplaced(addedTabId: number, removedTabId: number): void {
   const track = session.tabs[String(removedTabId)];
   if (track) session.tabs[String(addedTabId)] = track;
   delete session.tabs[String(removedTabId)];
+  const link = nameLinks[String(removedTabId)];
+  if (link !== undefined) {
+    nameLinks[String(addedTabId)] = link;
+    delete nameLinks[String(removedTabId)];
+    saveLinks();
+  }
   for (const entry of Object.values(local.lastActive)) {
     if (entry.tabId === removedTabId) {
       entry.tabId = addedTabId;
@@ -1003,7 +1178,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse: (r
   init()
     .then(() => exclusive(() => handleMessage(message)))
     .then(async (result) => {
-      await flushLocal();
+      await Promise.all([flushLocal(), flushLinks()]);
       sendResponse({ ok: true, result });
     })
     .catch((err: unknown) => sendResponse({ ok: false, error: errorText(err) }));

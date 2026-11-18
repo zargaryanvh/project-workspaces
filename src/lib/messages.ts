@@ -16,11 +16,36 @@ export type Message =
   /** From the "already open" page: go to a tab you have, and close the new one. */
   | { type: 'goToTab'; tabId: number; closeTabId?: number }
   /** From the "already open" page: load the address after all, in this tab. */
-  | { type: 'openAnyway'; tabId: number; url: string };
+  | { type: 'openAnyway'; tabId: number; url: string }
+  /** The arrow in the list: open or close a project's tab list. Nothing else changes it. */
+  | { type: 'expand'; key: string; open: boolean }
+  /** A tab picked in a tab list: its project opens on that tab and the others fold. */
+  | { type: 'showTab'; tabId: number }
+  /** Gives a tab a name for the list ('' shows the page title again). */
+  | { type: 'nameTab'; tabId: number; name: string }
+  /** Moves a tab inside its project: right before another tab of it, or last (null). */
+  | { type: 'moveTab'; tabId: number; beforeTabId: number | null }
+  /** The ✕ on a tab in a tab list. */
+  | { type: 'closeTab'; tabId: number };
 
 export type Reply = { ok: true; result: unknown } | { ok: false; error: string };
 
-const TYPES = new Set(['switch', 'command', 'create', 'rename', 'recolor', 'move', 'delete', 'goToTab', 'openAnyway']);
+const TYPES = new Set([
+  'switch',
+  'command',
+  'create',
+  'rename',
+  'recolor',
+  'move',
+  'delete',
+  'goToTab',
+  'openAnyway',
+  'expand',
+  'showTab',
+  'nameTab',
+  'moveTab',
+  'closeTab',
+]);
 
 export function isMessage(value: unknown): value is Message {
   if (typeof value !== 'object' || value === null) return false;
