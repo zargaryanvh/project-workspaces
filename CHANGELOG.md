@@ -4,6 +4,8 @@
 
 - New: tab lists. The arrow next to a project shows its tabs under it, without opening the project. Click a tab to go there, drag it to change its order (the tab bar follows), ✕ to close it. Only the arrow opens or closes a list, and an open list stays open after a restart.
 - New: your own tab names. ✎ on a tab in the list gives it a name, for example which account a mail tab is. The name stays with the tab while it browses that site, comes back after a restart, and shows on the warning page too. The tab bar keeps the page title. No new permission.
+- Lighter on the browser. The side panel no longer reads every tab again on small changes (a new title, another active tab, a group folding): it updates what it has and redraws only the rows that changed. The background part ignores title and icon updates before doing any work, skips saves that would write the same data again, and handles a quick run of tab switches once.
+- The tab name field shows its hint in an i inside the field, on hover, instead of small print under it.
 - When the extension does not answer, the message now says to reload it on the extensions page. That is what an update needs: the browser keeps running the old background part until the extension is reloaded.
 - Settings page and README: how to put the list on the left (with pictures), and how to get a narrow project list with Brave's vertical tabs.
 - A project name that starts with an emoji (like "🔵 Admin") shows it once, in the colour dot's place, instead of a dot and the emoji.

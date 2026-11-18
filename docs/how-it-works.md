@@ -109,6 +109,24 @@ sequenceDiagram
 
 The check runs for tabs that showed no web page yet: a new tab, a link opened in a new tab, a bookmark, a link from another app. If the address belongs to a project and another tab already shows that site (same host and port), the new tab is sent to the warning page. A link opened from the same site is never warned, and a tab going from one site to another (for example during a sign-in) is never checked. Everything the check needs is taken from the event itself, because a fast page (a local dev server) has loaded before any later look at the tab.
 
+## Staying light
+
+The extension runs all day next to every tab, so the busy paths do as little as possible.
+
+The background worker:
+
+- stops title, icon and loading-progress updates (most tab events) before doing any work;
+- runs only the newest of a quick run of tab switches, and reads only the window's groups for it, not every tab;
+- checks a new tab against the project addresses before it makes any browser call;
+- batches saves for a second, and skips a save that would write the same data again.
+
+The side panel:
+
+- reads all tabs and groups only when the window's layout changes (a tab or group added, removed or moved);
+- applies smaller news (a new title, another active tab, a group recoloured or folded, saved names) to what it already holds;
+- keeps every row whose content did not change, so a new title redraws one row, at most every 0.4 seconds;
+- draws nothing while it is hidden.
+
 ## Testing
 
 - `test/unit/`: the pure helpers, plus a scan of the source for anything that could reach the network.

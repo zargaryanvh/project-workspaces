@@ -9,15 +9,15 @@
  * background worker.
  */
 
-import { toGroupInfo, toTabInfos } from './lib/chromeShapes.js';
+import { toGroupInfo } from './lib/chromeShapes.js';
 import { buildList, moveTarget, type ListItem } from './lib/list.js';
 import { send } from './lib/messages.js';
 import { sanitizeExpanded, sanitizeNameLinks, sanitizeRules, sanitizeTabNames } from './lib/sanitize.js';
 import { moveTabRow, projectTabRows, shortAddress, tabRowText, type TabForList, type TabRow } from './lib/tabList.js';
-import { cleanTabName, MAX_TAB_NAME_LENGTH, tabLabels } from './lib/tabNames.js';
+import { cleanTabName, MAX_TAB_NAME_LENGTH, tabLabels, type NameLinks } from './lib/tabNames.js';
 import { cleanTitle, isStagingTitle, projectKey, withStagingMark } from './lib/titles.js';
-import { GROUP_COLORS, NO_GROUP, type GroupColor, type Rule } from './lib/types.js';
-import { COLOR_NAMES, h, keepFocus, plural, projectLabel } from './ui.js';
+import { GROUP_COLORS, NO_GROUP, type GroupColor, type GroupInfo, type Rule, type TabInfo, type TabName } from './lib/types.js';
+import { attachTip, COLOR_NAMES, h, keepFocus, plural, projectLabel, syncTip } from './ui.js';
 
 const params = new URLSearchParams(location.search);
 const rowView = params.get('view') === 'row';
@@ -64,54 +64,194 @@ let windowId = -1;
 
 // ---------------------------------------------------------------- data
 
-let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+/**
+ * What the panel knows about its window. All tabs and groups are read only
+ * when the window's layout changes (a tab or group added, removed or moved).
+ * Smaller news (a new title, another active tab, a group recoloured, saved
+ * names) is applied to what the panel already holds, without asking the
+ * browser again, and storage is read once and then followed through its
+ * change events.
+ */
+type PanelTab = TabInfo & TabForList;
 
+const known = {
+  groups: [] as GroupInfo[],
+  tabs: [] as PanelTab[],
+  pinned: new Set<number>(),
+  names: [] as TabName[],
+  links: {} as NameLinks,
+};
+let labels = new Map<number, string>();
+
+/** Rebuilds the project list and the tab lists from what is known. No browser calls. */
+function rebuildModel(): void {
+  data.items = buildList(known.groups, known.tabs, windowId);
+  data.tabs = new Map(data.items.map((item) => [item.groupId, projectTabRows(known.tabs, windowId, item.groupId, labels)]));
+  if (ui.menuFor !== null && !data.items.some((i) => i.groupId === ui.menuFor)) closeMenu();
+  if (ui.tabRenaming && !known.tabs.some((t) => t.id === ui.tabRenaming?.tabId)) ui.tabRenaming = null;
+}
+
+function toPanelTab(t: chrome.tabs.Tab): PanelTab | null {
+  if (t.id === undefined) return null;
+  return {
+    id: t.id,
+    groupId: t.groupId ?? NO_GROUP,
+    index: t.index,
+    active: t.active,
+    pinned: t.pinned,
+    title: t.title ?? '',
+    url: t.url || t.pendingUrl || '',
+    windowId: t.windowId,
+  };
+}
+
+let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+let refreshOwed = false;
+
+/** The window's layout changed: read its tabs and groups again, once the burst of events is over. */
 function scheduleRefresh(): void {
+  if (document.hidden) {
+    refreshOwed = true; // nobody sees the panel: read when it shows again
+    return;
+  }
   if (refreshTimer !== undefined) clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => void refresh(), 40);
 }
 
 async function refresh(): Promise<void> {
   refreshTimer = undefined;
+  refreshOwed = false;
   try {
-    const [groups, tabs, stored, saved] = await Promise.all([
-      chrome.tabGroups.query({ windowId }),
-      chrome.tabs.query({ windowId }),
-      chrome.storage.local.get(['rules', 'expanded', 'tabNames']),
-      chrome.storage.session.get('tabNameLinks'),
-    ]);
-    data.rules = sanitizeRules(stored['rules']);
-    data.items = buildList(groups.map(toGroupInfo), toTabInfos(tabs), windowId);
-
-    const expanded = new Set(sanitizeExpanded(stored['expanded']));
-    for (const [key, open] of pendingExpand) if (expanded.has(key) === open) pendingExpand.delete(key);
-    data.expanded = expanded;
-    const labels = tabLabels(sanitizeTabNames(stored['tabNames']), sanitizeNameLinks(saved['tabNameLinks']));
-    const forList: TabForList[] = tabs.flatMap((t) =>
-      t.id === undefined
-        ? []
-        : [
-            {
-              id: t.id,
-              groupId: t.groupId ?? NO_GROUP,
-              index: t.index,
-              active: t.active,
-              title: t.title ?? '',
-              url: t.url || t.pendingUrl || '',
-              windowId: t.windowId,
-            },
-          ],
-    );
-    data.tabs = new Map(data.items.map((item) => [item.groupId, projectTabRows(forList, windowId, item.groupId, labels)]));
-
+    const [groups, tabs] = await Promise.all([chrome.tabGroups.query({ windowId }), chrome.tabs.query({ windowId })]);
+    known.groups = groups.map(toGroupInfo);
+    known.tabs = tabs.map(toPanelTab).filter((t): t is PanelTab => t !== null);
+    known.pinned = new Set(known.tabs.filter((t) => t.pinned).map((t) => t.id));
     data.selected = tabs.filter((t) => t.highlighted && !t.pinned).length;
+    rebuildModel();
     data.loaded = true;
-    if (ui.menuFor !== null && !data.items.some((i) => i.groupId === ui.menuFor)) closeMenu();
-    if (ui.tabRenaming && !forList.some((t) => t.id === ui.tabRenaming?.tabId)) ui.tabRenaming = null;
     renderFromOutside();
   } catch (err) {
     showError(err);
   }
+}
+
+/** Storage, read once at the start; later changes come with their new values (see onStorageChanged). */
+async function loadStored(): Promise<void> {
+  const [stored, saved] = await Promise.all([
+    chrome.storage.local.get(['rules', 'expanded', 'tabNames']),
+    chrome.storage.session.get('tabNameLinks'),
+  ]);
+  data.rules = sanitizeRules(stored['rules']);
+  takeExpanded(stored['expanded']);
+  known.names = sanitizeTabNames(stored['tabNames']);
+  known.links = sanitizeNameLinks(saved['tabNameLinks']);
+  labels = tabLabels(known.names, known.links);
+}
+
+function takeExpanded(raw: unknown): void {
+  const expanded = new Set(sanitizeExpanded(raw));
+  for (const [key, open] of pendingExpand) if (expanded.has(key) === open) pendingExpand.delete(key);
+  data.expanded = expanded;
+}
+
+function onStorageChanged(changes: Record<string, chrome.storage.StorageChange>, area: string): void {
+  let names = false;
+  if (area === 'local') {
+    if (changes['rules']) data.rules = sanitizeRules(changes['rules'].newValue);
+    if (changes['expanded']) takeExpanded(changes['expanded'].newValue);
+    if (changes['tabNames']) {
+      known.names = sanitizeTabNames(changes['tabNames'].newValue);
+      names = true;
+    }
+    if (!changes['rules'] && !changes['expanded'] && !names) return; // the worker's own bookkeeping
+  } else if (area === 'session') {
+    if (!changes['tabNameLinks']) return;
+    known.links = sanitizeNameLinks(changes['tabNameLinks'].newValue);
+    names = true;
+  } else {
+    return;
+  }
+  if (names) labels = tabLabels(known.names, known.links);
+  // New names, or a list opened in another window: its rows take the latest titles.
+  if (names || changes['expanded']) rebuildModel();
+  renderSoon();
+}
+
+// ---------------------------------------------------------------- browser events, applied to what is known
+
+function onTabUpdated(tabId: number, change: chrome.tabs.OnUpdatedInfo, tab: chrome.tabs.Tab): void {
+  if (tab.windowId !== windowId) return;
+  if (change.groupId !== undefined || change.pinned !== undefined) {
+    scheduleRefresh();
+    return;
+  }
+  if (change.title === undefined && change.url === undefined) return; // icons, loading progress, sound
+  const mine = known.tabs.find((t) => t.id === tabId);
+  if (!mine) return; // a tab the panel has not read yet: the refresh for its arrival brings it
+  mine.title = tab.title ?? '';
+  mine.url = tab.url || tab.pendingUrl || '';
+  // Titles and addresses show only in an open tab list; a ticking title elsewhere costs nothing.
+  const item = data.items.find((i) => i.groupId === mine.groupId);
+  if (!item || !isExpanded(item)) return;
+  const row = data.tabs.get(mine.groupId)?.find((r) => r.id === tabId);
+  if (!row) return;
+  row.title = mine.title;
+  row.url = mine.url;
+  renderSoon(TITLE_RENDER_MS);
+}
+
+function onTabCreated(tab: chrome.tabs.Tab): void {
+  if (tab.windowId !== windowId) return;
+  // A tab in no project changes nothing the list shows (if it joins a group later, that is its own event).
+  if ((tab.groupId ?? NO_GROUP) === NO_GROUP) {
+    const added = toPanelTab(tab);
+    if (added) known.tabs.push(added);
+    return;
+  }
+  scheduleRefresh();
+}
+
+function onTabRemoved(tabId: number, info: chrome.tabs.OnRemovedInfo): void {
+  if (info.windowId !== windowId || info.isWindowClosing) return;
+  const gone = known.tabs.find((t) => t.id === tabId);
+  if (!gone) return;
+  known.tabs = known.tabs.filter((t) => t.id !== tabId);
+  known.pinned.delete(tabId);
+  if (gone.groupId === NO_GROUP) return; // the rest keep their order: nothing to redraw
+  rebuildModel();
+  renderSoon();
+}
+
+function onTabActivated(info: chrome.tabs.OnActivatedInfo): void {
+  if (info.windowId !== windowId) return;
+  if (!known.tabs.some((t) => t.id === info.tabId)) {
+    scheduleRefresh();
+    return;
+  }
+  for (const t of known.tabs) t.active = t.id === info.tabId;
+  rebuildModel();
+  renderSoon();
+}
+
+function onTabHighlighted(info: chrome.tabs.OnHighlightedInfo): void {
+  if (info.windowId !== windowId) return;
+  data.selected = info.tabIds.filter((id) => !known.pinned.has(id)).length;
+  renderSoon();
+}
+
+function onGroupUpdated(group: chrome.tabGroups.TabGroup): void {
+  if (group.windowId !== windowId) return;
+  const mine = known.groups.find((g) => g.id === group.id);
+  if (!mine) {
+    scheduleRefresh();
+    return;
+  }
+  const next = toGroupInfo(group);
+  const shown = mine.title !== next.title || mine.color !== next.color;
+  Object.assign(mine, next); // folding and opening change nothing the list shows
+  if (!shown) return;
+  rebuildModel();
+  renderSoon();
 }
 
 async function refreshShortcuts(): Promise<void> {
@@ -163,11 +303,39 @@ document.addEventListener('pointercancel', releasePointer, true);
 window.addEventListener('blur', releasePointer);
 
 function renderFromOutside(): void {
-  if (pointerDown) {
-    renderWaiting = true;
+  if (pointerDown || document.hidden) {
+    renderWaiting = true; // drawn when the button is up, or when the panel shows again
     return;
   }
   render();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (refreshOwed) void refresh();
+  if (renderWaiting && !pointerDown) {
+    renderWaiting = false;
+    render();
+  }
+});
+
+/** A new title redraws its row at most this often: a title that ticks every second is not redrawn on every tick. */
+const TITLE_RENDER_MS = 400;
+let renderTimer: ReturnType<typeof setTimeout> | undefined;
+let renderDue = 0;
+
+/** Draws soon, once for a burst of news. An earlier request wins over a later one. */
+function renderSoon(delay = 16): void {
+  const due = Date.now() + delay;
+  if (renderTimer !== undefined) {
+    if (renderDue <= due) return;
+    clearTimeout(renderTimer);
+  }
+  renderDue = due;
+  renderTimer = setTimeout(() => {
+    renderTimer = undefined;
+    renderFromOutside();
+  }, delay);
 }
 
 // ---------------------------------------------------------------- actions
@@ -238,10 +406,6 @@ function isExpanded(item: ListItem): boolean {
   return pendingExpand.get(item.key) ?? data.expanded.has(item.key);
 }
 
-function anyTabListOpen(): boolean {
-  return data.items.some(isExpanded);
-}
-
 /** The arrow: shows or hides a project's tabs. Only this changes it; switching projects never does. */
 function toggleTabs(item: ListItem): void {
   const open = !isExpanded(item);
@@ -249,11 +413,13 @@ function toggleTabs(item: ListItem): void {
   if (!item.key) {
     if (open) ui.openUntitled.add(item.groupId);
     else ui.openUntitled.delete(item.groupId);
+    if (open) rebuildModel();
     render();
     return;
   }
   const key = item.key;
   pendingExpand.set(key, open);
+  if (open) rebuildModel(); // titles that changed while the list was closed
   render();
   void send({ type: 'expand', key, open }).catch((err: unknown) => {
     pendingExpand.delete(key);
@@ -402,6 +568,7 @@ function render(): void {
       renderCreate();
     }
   });
+  syncTip();
   errorEl.hidden = !ui.error;
   errorEl.textContent = ui.error;
 }
@@ -410,9 +577,41 @@ function displayName(item: ListItem): string {
   return item.title || 'Untitled group';
 }
 
-/** What the rows show, as a string: they are rebuilt only when it changes. */
+/** What the project row shows, as a string: it is rebuilt only when that changes. */
 let listKey = '';
 let createKey = '';
+
+/**
+ * Every row drawn last time, by a key made of everything it shows. A row whose
+ * key is unchanged is kept as it is (with its hover and focus), so a new title
+ * redraws one row, not the list.
+ */
+let rowCache = new Map<string, HTMLElement>();
+
+function keep<T extends HTMLElement>(next: Map<string, HTMLElement>, key: string, build: () => T): T {
+  const el = (rowCache.get(key) as T | undefined) ?? build();
+  next.set(key, el);
+  return el;
+}
+
+/**
+ * Puts exactly these children into `parent`, in this order, touching only what
+ * differs: rows no longer wanted go first, then new or moved rows are put in
+ * place. One changed row is one removal and one insertion; the rows around it
+ * stay where they are.
+ */
+function patchChildren(parent: Element, wanted: readonly Element[]): void {
+  const keepers = new Set(wanted);
+  for (const child of Array.from(parent.children)) if (!keepers.has(child)) child.remove();
+  let cursor = parent.firstElementChild;
+  for (const el of wanted) {
+    if (el === cursor) {
+      cursor = cursor.nextElementSibling;
+      continue;
+    }
+    parent.insertBefore(el, cursor);
+  }
+}
 
 /** The project row: labels like Brave's group labels, in tab bar order. */
 function renderRow(): void {
@@ -450,26 +649,23 @@ function renderList(): void {
     return;
   }
   ui.listWaiting = false;
-  const deletingKey = ui.deleting ? data.items.find((i) => i.groupId === ui.deleting?.groupId)?.key : undefined;
-  const key = JSON.stringify([
-    data.items,
-    ui.menuFor,
-    ui.renaming,
-    ui.deleting,
-    data.items.map((i) => (i.number !== null ? (data.shortcuts.get(`project-${i.number}`) ?? '') : '')),
-    deletingKey ? data.rules.filter((r) => projectKey(r.project) === deletingKey).length : 0,
-    data.items.map((i) => (isExpanded(i) ? (data.tabs.get(i.groupId) ?? []) : null)),
-    ui.tabRenaming,
-  ]);
-  if (key === listKey) return; // nothing to show differently: keep the same elements
-  listKey = key;
-  const rows: HTMLLIElement[] = [];
+  const next = new Map<string, HTMLElement>();
+  const rows: HTMLElement[] = [];
+  const last = data.items.length - 1;
   data.items.forEach((item, index) => {
-    rows.push(renderItem(item));
-    if (ui.menuFor === item.groupId) rows.push(renderMenu(item, index));
-    if (isExpanded(item)) rows.push(renderTabs(item));
+    const shortcut = item.number !== null ? (data.shortcuts.get(`project-${item.number}`) ?? '') : '';
+    const open = isExpanded(item);
+    const menu = ui.menuFor === item.groupId;
+    rows.push(keep(next, JSON.stringify(['row', item, shortcut, open, menu, ui.renaming === null]), () => renderItem(item)));
+    if (menu) {
+      const rules = item.key ? data.rules.filter((r) => projectKey(r.project) === item.key).length : 0;
+      const key = JSON.stringify(['menu', item, index === 0, index === last, ui.renaming, ui.deleting, rules]);
+      rows.push(keep(next, key, () => renderMenu(item, index)));
+    }
+    if (open) rows.push(renderTabs(item, next));
   });
-  listEl.replaceChildren(...rows);
+  rowCache = next;
+  patchChildren(listEl, rows);
 }
 
 function renderItem(item: ListItem): HTMLLIElement {
@@ -538,21 +734,27 @@ function renderItem(item: ListItem): HTMLLIElement {
 }
 
 /** A project's tabs, under its row, in tab bar order. */
-function renderTabs(item: ListItem): HTMLLIElement {
-  const children: HTMLLIElement[] = [];
-  for (const row of data.tabs.get(item.groupId) ?? []) {
-    if (ui.tabRenaming?.tabId === row.id) {
-      children.push(renderTabRename(row, ui.tabRenaming));
-      children.push(h('li', { class: 'tab-hint' }, 'Enter saves. Leave it empty to show the page title.'));
-    } else {
-      children.push(renderTab(item, row));
-    }
-  }
-  return h(
-    'li',
-    { class: 'tabs', 'data-color': item.color, 'data-group': String(item.groupId) },
-    h('ul', { class: 'tab-list', 'aria-label': `Tabs of ${displayName(item)}` }, ...children),
+function renderTabs(item: ListItem, next: Map<string, HTMLElement>): HTMLElement {
+  const name = displayName(item);
+  const box = keep(next, JSON.stringify(['tabs', item.groupId, item.color, name]), () =>
+    h(
+      'li',
+      { class: 'tabs', 'data-color': item.color, 'data-group': String(item.groupId) },
+      h('ul', { class: 'tab-list', 'aria-label': `Tabs of ${name}` }),
+    ),
   );
+  const rows: HTMLElement[] = [];
+  for (const row of data.tabs.get(item.groupId) ?? []) {
+    const editing = ui.tabRenaming?.tabId === row.id ? ui.tabRenaming : null;
+    rows.push(
+      editing
+        ? keep(next, JSON.stringify(['edit', item.groupId, row, editing]), () => renderTabRename(row, editing))
+        : keep(next, JSON.stringify(['tab', item.groupId, row, ui.tabRenaming === null]), () => renderTab(item, row)),
+    );
+  }
+  const list = box.firstElementChild;
+  if (list) patchChildren(list, rows);
+  return box;
 }
 
 function renderTab(item: ListItem, row: TabRow): HTMLLIElement {
@@ -605,6 +807,15 @@ function renderTab(item: ListItem, row: TabRow): HTMLLIElement {
   );
 }
 
+const TAB_NAME_HINT = 'Enter saves. Leave it empty to show the page title.';
+
+/** The i inside a field: its hint shows in a tooltip on hover. */
+function infoTip(text: string): HTMLSpanElement {
+  const icon = h('span', { class: 'info-tip', 'data-tip': text, 'aria-hidden': 'true' }, 'i');
+  attachTip(icon, text);
+  return icon;
+}
+
 function renderTabRename(row: TabRow, state: { tabId: number; value: string }): HTMLLIElement {
   const save = (): void => void saveTabName(row.id, state.value);
   const cancel = (): void => {
@@ -614,25 +825,33 @@ function renderTabRename(row: TabRow, state: { tabId: number; value: string }): 
   return h(
     'li',
     { class: 'tab-row editing', 'data-tab': String(row.id) },
-    h('input', {
-      type: 'text',
-      class: 'text tab-input',
-      value: state.value,
-      maxLength: MAX_TAB_NAME_LENGTH,
-      placeholder: row.title || shortAddress(row.url) || 'Tab name',
-      'aria-label': 'Tab name',
-      'data-focus': 'tab-name',
-      oninput: (e: Event) => {
-        state.value = (e.target as HTMLInputElement).value;
-      },
-      onkeydown: (e: KeyboardEvent) => {
-        if (e.key === 'Enter') save();
-        if (e.key === 'Escape') {
-          e.stopPropagation();
-          cancel();
-        }
-      },
-    }),
+    h(
+      'div',
+      { class: 'tab-field' },
+      h('input', {
+        type: 'text',
+        class: 'text tab-input',
+        value: state.value,
+        maxLength: MAX_TAB_NAME_LENGTH,
+        placeholder: row.title || shortAddress(row.url) || 'Tab name',
+        'aria-label': 'Tab name',
+        'aria-describedby': 'tab-name-hint',
+        'data-focus': 'tab-name',
+        oninput: (e: Event) => {
+          state.value = (e.target as HTMLInputElement).value;
+        },
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter') save();
+          if (e.key === 'Escape') {
+            e.stopPropagation();
+            cancel();
+          }
+        },
+      }),
+      // The hint lives in the field: an i that shows it on hover, never a line of small print under it.
+      infoTip(TAB_NAME_HINT),
+      h('span', { id: 'tab-name-hint', class: 'sr-only' }, TAB_NAME_HINT),
+    ),
     h(
       'button',
       { type: 'button', class: 'tab-act tab-save', title: 'Save the name', 'aria-label': 'Save the name', onclick: save },
@@ -915,26 +1134,22 @@ function renderCreate(): void {
 // ---------------------------------------------------------------- start
 
 function wireEvents(): void {
-  chrome.tabs.onCreated.addListener(scheduleRefresh);
-  chrome.tabs.onRemoved.addListener(scheduleRefresh);
-  chrome.tabs.onActivated.addListener(scheduleRefresh);
-  chrome.tabs.onHighlighted.addListener(scheduleRefresh);
-  chrome.tabs.onMoved.addListener(scheduleRefresh);
-  chrome.tabs.onAttached.addListener(scheduleRefresh);
-  chrome.tabs.onDetached.addListener(scheduleRefresh);
-  chrome.tabs.onUpdated.addListener((_tabId, change) => {
-    if (change.groupId !== undefined || change.pinned !== undefined) scheduleRefresh();
-    // Titles and addresses show only in open tab lists.
-    else if ((change.title !== undefined || change.url !== undefined) && anyTabListOpen()) scheduleRefresh();
-  });
-  chrome.tabGroups.onCreated.addListener(scheduleRefresh);
-  chrome.tabGroups.onUpdated.addListener(scheduleRefresh);
-  chrome.tabGroups.onRemoved.addListener(scheduleRefresh);
-  chrome.tabGroups.onMoved.addListener(scheduleRefresh);
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && (changes['rules'] || changes['expanded'] || changes['tabNames'])) scheduleRefresh();
-    if (area === 'session' && changes['tabNameLinks']) scheduleRefresh();
-  });
+  // The window's layout changed (only this window's events count): read it again.
+  const mine = (id: number) => id === windowId;
+  chrome.tabs.onCreated.addListener(onTabCreated);
+  chrome.tabs.onRemoved.addListener(onTabRemoved);
+  chrome.tabs.onMoved.addListener((_id, info) => mine(info.windowId) && scheduleRefresh());
+  chrome.tabs.onAttached.addListener((_id, info) => mine(info.newWindowId) && scheduleRefresh());
+  chrome.tabs.onDetached.addListener((_id, info) => mine(info.oldWindowId) && scheduleRefresh());
+  chrome.tabGroups.onCreated.addListener((group) => mine(group.windowId) && scheduleRefresh());
+  chrome.tabGroups.onRemoved.addListener((group) => mine(group.windowId) && scheduleRefresh());
+  chrome.tabGroups.onMoved.addListener((group) => mine(group.windowId) && scheduleRefresh());
+  // Smaller news is applied to what the panel already knows.
+  chrome.tabs.onUpdated.addListener(onTabUpdated);
+  chrome.tabs.onActivated.addListener(onTabActivated);
+  chrome.tabs.onHighlighted.addListener(onTabHighlighted);
+  chrome.tabGroups.onUpdated.addListener(onGroupUpdated);
+  chrome.storage.onChanged.addListener(onStorageChanged);
   window.addEventListener('focus', () => void refreshShortcuts());
 
   document.getElementById('open-options')?.addEventListener('click', () => void chrome.runtime.openOptionsPage());
@@ -962,6 +1177,7 @@ async function main(): Promise<void> {
   const fromQuery = Number(params.get('windowId'));
   windowId = Number.isInteger(fromQuery) && fromQuery > 0 ? fromQuery : ((await chrome.windows.getCurrent()).id ?? -1);
   wireEvents();
+  await loadStored();
   await Promise.all([refresh(), refreshShortcuts()]);
 }
 

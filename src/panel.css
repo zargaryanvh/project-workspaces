@@ -354,15 +354,46 @@ h2 {
   padding: 2px 0;
 }
 
-.tab-input {
-  min-height: 28px;
-  padding: 3px 8px;
+/* The name field, with an i inside it that shows the hint on hover (no small print under the field). */
+.tab-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
 }
 
-.tab-hint {
-  margin: 0 0 4px 2px;
+.tab-input {
+  min-height: 28px;
+  padding: 3px 28px 3px 8px;
+}
+
+.info-tip {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
   color: var(--muted);
-  font-size: 12px;
+  font: italic 700 10px/12px Georgia, 'Times New Roman', serif;
+  text-align: center;
+  cursor: help;
+}
+
+.info-tip:hover,
+.info-tip:focus-visible {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .tab-row.dragging {

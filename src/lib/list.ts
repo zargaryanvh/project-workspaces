@@ -9,7 +9,6 @@ export interface ListItem {
   key: string;
   color: GroupColor;
   tabCount: number;
-  collapsed: boolean;
   /** The active tab of the window is in this project. */
   current: boolean;
   /** 1 to 9 for the first nine projects (their "Project N" shortcut), else null. */
@@ -43,7 +42,6 @@ export function buildList(groups: readonly GroupInfo[], tabs: readonly TabInfo[]
       key: projectKey(g.title),
       color: g.color,
       tabCount: counts.get(g.id) ?? 0,
-      collapsed: g.collapsed,
       current: g.id === activeGroupId,
       number: i < 9 ? i + 1 : null,
     }));

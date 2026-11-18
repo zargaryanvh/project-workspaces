@@ -49,14 +49,19 @@ import {
   type TabTrack,
 } from './lib/tabTracking.js';
 import { cleanTitle, defaultColorFor, isStagingTitle, projectKey } from './lib/titles.js';
-import type { GroupColor, LocalState, StoredProject } from './lib/types.js';
+import type { GroupColor, GroupInfo, LocalState, StoredProject } from './lib/types.js';
 import { NO_GROUP } from './lib/types.js';
 
 /** Events this soon after the extension's own change count as its own. */
 const OWN_MS = 1500;
 /** A group name typed in Brave's editor changes on every key; wait for a pause. */
 const RENAME_SETTLE_MS = 1200;
-const SAVE_DELAY_MS = 300;
+/**
+ * Saved data waits this long, so a burst of tab switches or page loads becomes
+ * one write. Requests from the extension's pages are saved before they answer.
+ */
+const SAVE_DELAY_MS = 1000;
+const SESSION_SAVE_MS = 1000;
 /**
  * A window Brave is filling (Ctrl+Shift+T, start-up) is left alone until no tab
  * or group has been added to it for this long. Pages loading do not count.
@@ -114,6 +119,9 @@ async function start(): Promise<void> {
   local = sanitizeLocal(stored);
   session = readSession(saved['state']);
   nameLinks = sanitizeNameLinks(saved['tabNameLinks']);
+  // What is on disk now: a save that would write the same again is skipped.
+  for (const key of LOCAL_KEYS) savedLocal.set(key, JSON.stringify(local[key]));
+  savedSession = JSON.stringify(session);
   await catchUp();
   await applySurface().catch(report); // the toolbar button is a nicety: never let it stop the rest
 }
@@ -178,7 +186,11 @@ async function catchUp(): Promise<void> {
 
 // ---------------------------------------------------------------- saving
 
+const LOCAL_KEYS: readonly LocalKey[] = ['projects', 'lastActive', 'openProjects', 'tabNames', 'expanded'];
 const dirtyLocal = new Set<LocalKey>();
+/** Each key as last written (JSON), so writing the same value again is skipped. */
+const savedLocal = new Map<LocalKey, string>();
+let savedSession = '';
 let localTimer: ReturnType<typeof setTimeout> | undefined;
 let sessionTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -191,21 +203,25 @@ async function flushLocal(): Promise<void> {
   if (localTimer !== undefined) clearTimeout(localTimer);
   localTimer = undefined;
   if (dirtyLocal.size === 0) return;
-  const items: Partial<LocalState> = {};
-  if (dirtyLocal.has('projects')) items.projects = local.projects;
-  if (dirtyLocal.has('lastActive')) items.lastActive = local.lastActive;
-  if (dirtyLocal.has('openProjects')) items.openProjects = local.openProjects;
-  if (dirtyLocal.has('tabNames')) items.tabNames = local.tabNames;
-  if (dirtyLocal.has('expanded')) items.expanded = local.expanded;
+  const items: Partial<Record<LocalKey, unknown>> = {};
+  for (const key of dirtyLocal) {
+    const json = JSON.stringify(local[key]);
+    if (savedLocal.get(key) === json) continue;
+    savedLocal.set(key, json);
+    items[key] = local[key];
+  }
   dirtyLocal.clear();
-  await chrome.storage.local.set(items);
+  if (Object.keys(items).length > 0) await chrome.storage.local.set(items);
 }
 
 function saveSession(): void {
   sessionTimer ??= setTimeout(() => {
     sessionTimer = undefined;
+    const json = JSON.stringify(session);
+    if (json === savedSession) return; // nothing changed since the last write
+    savedSession = json;
     chrome.storage.session.set({ state: session }).catch(report);
-  }, 150);
+  }, SESSION_SAVE_MS);
 }
 
 let linksDirty = false;
@@ -496,19 +512,38 @@ async function foldGroups(groupIds: readonly number[]): Promise<void> {
   await Promise.all(groupIds.map((id) => retry(() => chrome.tabGroups.update(id, { collapsed: true }))));
 }
 
-/** After the owner moved to a tab of another project: open its group, fold the rest. */
-async function keepOnlyOpen(windowId: number, groupId: number): Promise<void> {
-  const { groups, tabs } = await readWindow(windowId);
-  const active = tabs.find((t) => t.active);
-  if (!active || active.groupId !== groupId) return; // moved on again; a later event settles it
-  if (groups.find((g) => g.id === groupId)?.collapsed) {
+/**
+ * After the owner moved to a tab of another project: open its group, fold the
+ * rest. Only the groups are read (not every tab), and the open project is
+ * remembered from them.
+ */
+async function keepOnlyOpen(windowId: number, groupId: number, known?: GroupInfo[]): Promise<void> {
+  const groups = known ?? (await chrome.tabGroups.query({ windowId })).map(toGroupInfo);
+  const target = groups.find((g) => g.id === groupId);
+  if (!target) return;
+  if (target.collapsed) {
     markOwnOpen(groupId); // the active tab must never sit inside a folded group
     await retry(() => chrome.tabGroups.update(groupId, { collapsed: false }));
   }
   await foldGroups(groupsToFold(groups, windowId, groupId));
-  session.windows[String(windowId)] = groupId;
-  saveSession();
-  await rememberNow(windowId);
+  if (session.windows[String(windowId)] !== groupId) {
+    session.windows[String(windowId)] = groupId;
+    saveSession();
+  }
+  rememberOpenGroup(windowId, groups, groupId);
+}
+
+/** Notes the project now open in a window from groups already read: no browser calls (see rememberNow). */
+function rememberOpenGroup(windowId: number, groups: readonly GroupInfo[], groupId: number): void {
+  if (isQuiet(windowId)) return;
+  const signature = windowSignature(groups, windowId);
+  const key = projectKey(groups.find((g) => g.id === groupId)?.title ?? '');
+  if (!signature || !key) return;
+  const next = rememberOpen(local.openProjects, signature, key);
+  if (next !== local.openProjects) {
+    local.openProjects = next;
+    saveLocal('openProjects');
+  }
 }
 
 async function runCommand(command: string, windowId: number): Promise<boolean> {
@@ -620,6 +655,8 @@ function maybeCheckAlreadyOpen(tab: chrome.tabs.Tab, url: string | undefined, fr
   // Only a tab that showed no web page yet: a new tab, a link opened in a new tab, a bookmark,
   // a link from another app. A tab going from one site to another may be in a sign-in redirect.
   if (fromHost !== '') return;
+  // Only project addresses are checked: every other new tab ends here, before any browser call.
+  if (!matchRule(url, local.rules)) return;
   if (isQuiet(tab.windowId) || checkedNavigation.get(tab.id) === url) return;
   checkedNavigation.set(tab.id, url);
   // Not queued behind other work: the warning should come before the page has settled.
@@ -997,29 +1034,44 @@ function onTabUpdated(tabId: number, change: chrome.tabs.OnUpdatedInfo, tab: chr
         saveLocal('lastActive');
       }
     }
-    if (!quiet && isNewSite(before, track.host)) void exclusive(() => applyRules(tabId));
+    // Only a page that matches an address can move: most page loads end here, with no work queued.
+    if (!quiet && isNewSite(before, track.host) && matchRule(change.url, local.rules)) {
+      void exclusive(() => applyRules(tabId));
+    }
     scheduleRelink();
   }
 }
 
+/** The tab activated last in each window. A queued switch that is no longer the newest is skipped. */
+const latestActivation = new Map<number, number>();
+
 function onTabActivated(info: chrome.tabs.OnActivatedInfo): void {
+  latestActivation.set(info.windowId, info.tabId);
   if (isQuiet(info.windowId)) return;
   void exclusive(async () => {
+    // Flicking through tabs queues many switches; only the last one needs doing.
+    const stillNewest = () => latestActivation.get(info.windowId) === info.tabId;
+    if (!stillNewest()) return;
     const tab = await chrome.tabs.get(info.tabId).catch(() => null);
     if (!tab || tab.id === undefined || tab.groupId === NO_GROUP) {
       scheduleRemember(info.windowId);
       return;
     }
-    const group = await chrome.tabGroups.get(tab.groupId).catch(() => null);
-    if (!group) return;
-    const key = projectKey(group.title ?? '');
-    if (key) {
-      local.lastActive[key] = { tabId: tab.id, url: tab.url ?? '' };
+    const groups = (await chrome.tabGroups.query({ windowId: info.windowId })).map(toGroupInfo);
+    const group = groups.find((g) => g.id === tab.groupId);
+    if (!group || !stillNewest()) return;
+    const key = projectKey(group.title);
+    const url = tab.url ?? '';
+    const last = key ? local.lastActive[key] : undefined;
+    if (key && (last?.tabId !== tab.id || last.url !== url)) {
+      local.lastActive[key] = { tabId: tab.id, url };
       saveLocal('lastActive');
     }
-    session.windows[String(info.windowId)] = tab.groupId;
-    saveSession();
-    if (local.settings.follow) await keepOnlyOpen(info.windowId, tab.groupId);
+    if (session.windows[String(info.windowId)] !== tab.groupId) {
+      session.windows[String(info.windowId)] = tab.groupId;
+      saveSession();
+    }
+    if (local.settings.follow) await keepOnlyOpen(info.windowId, tab.groupId, groups);
     else scheduleRemember(info.windowId);
   });
 }
@@ -1114,6 +1166,7 @@ function onWindowRemoved(windowId: number): void {
   const timer = rememberTimers.get(windowId);
   if (timer !== undefined) clearTimeout(timer);
   rememberTimers.delete(windowId);
+  latestActivation.delete(windowId);
   delete session.windows[String(windowId)];
   saveSession();
 }
@@ -1133,7 +1186,13 @@ chrome.windows.onCreated.addListener(listen(onWindowCreated));
 chrome.windows.onRemoved.addListener(listen(onWindowRemoved));
 
 chrome.tabs.onCreated.addListener(listen(onTabCreated));
-chrome.tabs.onUpdated.addListener(listen(onTabUpdated));
+const handleTabUpdated = listen(onTabUpdated);
+chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
+  // Most updates are new titles, icons and loading progress, which need nothing
+  // from the worker: they stop here, before any work.
+  if (change.url === undefined && change.groupId === undefined && change.status !== 'loading') return;
+  handleTabUpdated(tabId, change, tab);
+});
 chrome.tabs.onActivated.addListener(listen(onTabActivated));
 chrome.tabs.onRemoved.addListener(listen(onTabRemoved));
 chrome.tabs.onReplaced.addListener(listen(onTabReplaced));

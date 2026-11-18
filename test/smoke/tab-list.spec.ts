@@ -196,7 +196,20 @@ test.describe.serial('Tab lists in the side panel', () => {
   });
 
   test('a tab gets a name of your own; the tab bar keeps the page title', async () => {
-    await nameTab('mail/u/0/', 'Personal');
+    // The field's hint is an i inside the field with a hover tip, never small print under it.
+    await panelClick(driver, { kind: 'tab', text: 'mail/u/0/', part: 'rename' });
+    const hint = await driver.evaluate(async () => {
+      const view = chrome.extension.getViews().find((w) => w.location.pathname.endsWith('/panel.html'));
+      for (let i = 0; i < 50 && !view?.document.querySelector('.tab-field'); i++) await new Promise((r) => setTimeout(r, 50));
+      const doc = view?.document;
+      return {
+        smallPrint: doc?.querySelectorAll('.tab-hint').length ?? -1,
+        tip: doc?.querySelector('.tab-field .info-tip')?.getAttribute('data-tip') ?? '',
+      };
+    });
+    expect(hint).toEqual({ smallPrint: 0, tip: 'Enter saves. Leave it empty to show the page title.' });
+    await panelType(driver, 'tab-name', 'Personal');
+    await panelClick(driver, { kind: 'selector', selector: '#list .tab-save' });
     await until(() => texts('Mail'), (t) => same(t, ['Personal', 'mail/u/1/']), 'Personal in the list');
     await nameTab('mail/u/1/', 'Work');
     await until(() => texts('Mail'), (t) => same(t, ['Personal', 'Work']), 'Work in the list');
@@ -261,6 +274,18 @@ test.describe.serial('Tab lists in the side panel', () => {
     const back = await until(state, (s) => same(docsOrder(s), [id('d1'), id('d2'), id('d3')]), 'd3 last again');
     expect(back.groupOf(id('d3')), 'still in Docs').toBe('Docs');
     await until(() => texts('Docs'), (t) => same(t, ['d1', 'd2', 'd3']), 'the list follows');
+  });
+
+  test('a list opened later shows the titles that changed while it was closed', async () => {
+    await panelClick(driver, { kind: 'twisty', title: 'Docs' });
+    await until(() => panelTabs(driver, 'Docs'), (rows) => rows === null, 'the Docs list closed');
+    await go(id('d2'), server.url('docs.test', '/d2-moved-on'));
+    await until(() => tabUrl(id('d2')), (u) => u.includes('/d2-moved-on'), 'd2 on another page');
+    await pause(300);
+    await panelClick(driver, { kind: 'twisty', title: 'Docs' });
+    await until(() => texts('Docs'), (t) => same(t, ['d1', 'd2-moved-on', 'd3']), 'the new title as soon as the list opens', 1500);
+    await go(id('d2'), server.url('docs.test', '/d2'));
+    await until(() => texts('Docs'), (t) => same(t, ['d1', 'd2', 'd3']), 'd2 back on its page');
   });
 
   test('after a restart: open lists stay open and the names come back', async () => {

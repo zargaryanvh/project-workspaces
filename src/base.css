@@ -80,6 +80,24 @@
   text-align: center;
 }
 
+/* The page's one tooltip (see attachTip): placed inside the window, so nothing cuts it off. */
+.tip {
+  position: fixed;
+  z-index: 100;
+  max-width: min(260px, calc(100vw - 12px));
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--fg);
+  color: var(--bg);
+  font: 500 12px/1.4 system-ui, 'Segoe UI', Roboto, sans-serif;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 25%);
+  pointer-events: none;
+}
+
+.tip[hidden] {
+  display: none;
+}
+
 /* Settings cards: the name field already shows the emoji, so the dot keeps its space but steps aside. */
 .dot.covered {
   visibility: hidden;

@@ -8,6 +8,7 @@ Thanks for helping. A few things keep this extension what it is.
 - **Few permissions.** Only `tabs`, `tabGroups`, `storage` and `sidePanel`. A change that needs more needs a very good reason.
 - **Hands off the user's tabs.** Never close, reload or discard a tab on the extension's own initiative.
 - **Logic in pure helpers.** Decisions live in `src/lib/` as pure functions with unit tests. The background worker reads the browser, asks a helper, then acts.
+- **Light on the browser.** It runs all day next to every tab. Busy events (titles, icons, loading) must stay nearly free, saves are batched, and the side panel redraws only what changed. See "Staying light" in [docs/how-it-works.md](docs/how-it-works.md).
 - **Plain words in the interface.** Short sentences that a non-native English reader understands, and no em dashes.
 
 ## Working on it

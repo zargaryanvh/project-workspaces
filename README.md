@@ -56,6 +56,7 @@ Private by design: no network requests, no analytics, no code from outside. See 
 - **Your own icons:** a name that starts with an emoji ("🔵 Admin", "🛒 Shopping") shows that emoji in the list instead of the colour dot.
 - **Hands off your tabs:** it never reloads tabs or puts them to sleep. It closes a tab only when you ask: ✕ on a tab in the list, or "Close this tab" on the warning.
 - **Works with Brave's vertical tabs:** each project becomes one row there, as narrow as you like.
+- **Light on the browser:** title and icon changes cost it almost nothing, saves are batched, and the side panel redraws only the rows that changed.
 
 ## Install
 
@@ -73,7 +74,7 @@ npm ci
 npm run build
 ```
 
-Then load the `dist` folder as above. After a change, run `npm run build` again and click the reload arrow on the extension.
+Then load the `dist` folder as above. After a change, run `npm run build` again and click the reload arrow on the extension. Until you do, the browser keeps running the old background part, and the list may say the extension did not answer.
 
 ## How to use it
 
@@ -109,7 +110,7 @@ In Chrome: Settings > Appearance > Side panel.
 
 ## A narrow project list: Brave's vertical tabs
 
-Brave does not let the side panel get narrower than about 400 px. For a narrow list, turn on Brave's vertical tabs: `brave://settings/appearance` > **Tabs** > **Use vertical tabs**. With this extension, each project is one row there, and only the open project shows its tabs. Drag the strip's edge to make it as narrow as you like (110 px works). Click a project row to open it; the others fold.
+Brave does not let the side panel get narrower than 400 px: the minimum is built into Brave (Chrome's is 360 px), and the browser holds every side panel to it, so no setting, flag or extension can make it narrower. For a narrow list, turn on Brave's vertical tabs: `brave://settings/appearance` > **Tabs** > **Use vertical tabs**. With this extension, each project is one row there, and only the open project shows its tabs. Drag the strip's edge to make it as narrow as you like (110 px works). Click a project row to open it; the others fold.
 
 In the same place, **Show on the right** moves the strip to the right, and **Auto expand on hover when minimized** shrinks it to a thin bar that widens when you point at it.
 
@@ -119,7 +120,7 @@ In the same place, **Show on the right** moves the strip to the right, and **Aut
 
 - Extensions cannot hide tabs, so the other projects stay in the tab bar as small folded labels.
 - Extension panels sit on the left or the right, not at the top or the bottom. The project row covers the top.
-- The browser decides how narrow the side panel can get (Brave: about 400 px). The list fits any width: names end with "..." and the extras hide. For a narrower list, use Brave's vertical tabs (see above).
+- The browser decides how narrow the side panel can get: 400 px in Brave, 360 px in Chrome, and a saved narrower width is ignored. The list fits any width: names end with "..." and the extras hide. For a narrower list, use Brave's vertical tabs (see above).
 - An extension may suggest only four keyboard shortcuts. Set the others yourself.
 - Your tab names show in this extension's list and on its warning page. The tab bar keeps each page's own title: changing it there would mean running code inside every site you open.
 - Tabs move only inside their own project in the list. To move a tab to another project, drag it in the tab bar.

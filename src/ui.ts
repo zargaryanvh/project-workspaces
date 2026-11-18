@@ -84,3 +84,40 @@ export function projectLabel(
 export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
+
+/**
+ * One small tooltip for the page, placed inside the window: under its anchor,
+ * or above it when there is no room, and never cut off by a scrolling list.
+ */
+let tip: HTMLDivElement | null = null;
+let tipAnchor: HTMLElement | null = null;
+
+export function hideTip(): void {
+  if (tip) tip.hidden = true;
+  tipAnchor = null;
+}
+
+/** Hides the tooltip if its anchor was drawn away (a row rebuilt under the pointer). */
+export function syncTip(): void {
+  if (tipAnchor && !tipAnchor.isConnected) hideTip();
+}
+
+export function attachTip(anchor: HTMLElement, text: string): void {
+  const show = (): void => {
+    tip ??= document.body.appendChild(h('div', { class: 'tip', role: 'tooltip', hidden: true }));
+    tip.textContent = text;
+    tip.hidden = false;
+    tipAnchor = anchor;
+    const box = anchor.getBoundingClientRect();
+    const margin = 6;
+    const left = Math.max(margin, Math.min(window.innerWidth - tip.offsetWidth - margin, box.right - tip.offsetWidth));
+    const below = box.bottom + 6;
+    const top = below + tip.offsetHeight > window.innerHeight - margin ? box.top - tip.offsetHeight - 6 : below;
+    tip.style.left = `${left}px`;
+    tip.style.top = `${Math.max(margin, top)}px`;
+  };
+  anchor.addEventListener('mouseenter', show);
+  anchor.addEventListener('focus', show);
+  anchor.addEventListener('mouseleave', hideTip);
+  anchor.addEventListener('blur', hideTip);
+}
