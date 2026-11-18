@@ -408,14 +408,62 @@ h2 {
   box-shadow: 0 2px 0 var(--accent);
 }
 
+/*
+ * A project's menu: the colours and two icons on one line when there is
+ * room, the icons on a second line when not. Never more than two lines.
+ */
 .menu {
   margin: 2px 0 8px 22px;
-  padding: 10px;
+  padding: 8px 8px 8px 10px;
   border: 1px solid var(--line);
   border-left: 3px solid var(--dot);
   border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+/* The line break is worked out from the full row of nine colours, so hiding some never pulls the icons up. */
+.menu > .swatches {
+  flex: 1 1 calc(9 * 22px + 8 * 6px);
+}
+
+/* Rename and delete: a field or a question with its buttons, one under the other. */
+.menu.form {
   display: grid;
   gap: 10px;
+  padding: 10px;
+}
+
+.menu-icons {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  flex: none;
+}
+
+button.icon-btn {
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  display: inline-grid;
+  place-items: center;
+}
+
+button.icon-btn:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+/* Quiet until pointed at, like the other icons; red only then. */
+button.icon-btn.danger:hover:not(:disabled) {
+  color: var(--danger);
 }
 
 .menu-actions {

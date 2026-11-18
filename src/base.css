@@ -239,3 +239,47 @@ label.check input {
   border-color: var(--bg);
   box-shadow: 0 0 0 2px var(--fg);
 }
+
+/*
+ * One row of colours: what does not fit waits behind the + (panel.ts,
+ * fitSwatches). The padding keeps the chosen colour's ring from being cut;
+ * the negative margin keeps the row where it was.
+ */
+.swatches.fit {
+  flex-wrap: nowrap;
+  overflow: hidden;
+  min-width: 0;
+  padding: 3px;
+  margin: -3px;
+}
+
+.swatches.fit.open {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.swatches [hidden] {
+  display: none !important;
+}
+
+.swatch-more {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px dashed var(--muted);
+  background: none;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  display: inline-grid;
+  place-items: center;
+}
+
+.swatch-more:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--fg);
+  border-style: solid;
+}

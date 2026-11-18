@@ -214,6 +214,51 @@ test.describe.serial('The narrow project windows', () => {
     expect(brave.left + brave.width, "Brave's far edge stays").toBe(SCREEN.width - inset);
   });
 
+  test("in a narrow list, a project's menu takes two lines: the colours that fit with a +, then the icons", async () => {
+    const look = () =>
+      driver.evaluate((listId) => {
+        const [view] = chrome.extension.getViews({ type: 'tab', windowId: listId });
+        const menu = view?.document.querySelector<HTMLElement>('#list .menu');
+        if (!view || !menu) return null;
+        const colors = [...menu.querySelectorAll<HTMLElement>('.swatch')];
+        const shown = colors.filter((c) => !c.hidden);
+        const more = menu.querySelector<HTMLElement>('.swatch-more');
+        const icons = menu.querySelector<HTMLElement>('.menu-icons');
+        const top = (el: Element | null | undefined) => Math.round(el?.getBoundingClientRect().top ?? -1);
+        return {
+          shown: shown.length,
+          chosenShown: shown.some((c) => c.getAttribute('aria-pressed') === 'true'),
+          more: more !== null && !more.hidden,
+          colourRows: new Set(shown.map(top)).size,
+          iconsBelow: top(icons) > top(shown[0]),
+          height: Math.round(menu.getBoundingClientRect().height),
+        };
+      }, listId);
+    await driver.evaluate((listId) => {
+      const [view] = chrome.extension.getViews({ type: 'tab', windowId: listId });
+      const row = view && [...view.document.querySelectorAll<HTMLElement>('#list .row')].find((r) => r.querySelector('.name')?.textContent === 'Alpha');
+      row?.querySelector<HTMLElement>('.more')?.click();
+    }, listId);
+    const closed = await until(look, (m) => m !== null && m.shown > 0, 'the menu drawn and fitted');
+    expect(closed?.more, 'a + for the colours that do not fit').toBe(true);
+    expect(closed?.shown).toBeLessThan(9);
+    expect(closed?.chosenShown, 'the chosen colour always shows').toBe(true);
+    expect(closed?.colourRows, 'the colours on one line').toBe(1);
+    expect(closed?.iconsBelow, 'the icons on the second line').toBe(true);
+    expect(closed?.height, 'two lines, no more').toBeLessThan(90);
+    // The + shows every colour until one is picked.
+    await driver.evaluate((listId) => {
+      const [view] = chrome.extension.getViews({ type: 'tab', windowId: listId });
+      view?.document.querySelector<HTMLElement>('#list .menu .swatch-more')?.click();
+    }, listId);
+    await until(look, (m) => m?.shown === 9, 'all nine colours after the +');
+    await driver.evaluate((listId) => {
+      const [view] = chrome.extension.getViews({ type: 'tab', windowId: listId });
+      view?.document.querySelector<HTMLElement>('#list .row.menu-open .more')?.click();
+    }, listId);
+    await until(look, (m) => m === null, 'the menu closed by its own ⋯');
+  });
+
   test('Brave moved and resized: the list goes along, at its height', async () => {
     await pause(600);
     await moveShown(windowId, listId, { left: 600, top: 100, width: 800, height: 600 });

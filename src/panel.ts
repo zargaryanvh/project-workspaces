@@ -20,7 +20,7 @@ import { moveTabRow, projectTabRows, shortAddress, tabRowText, type TabForList, 
 import { cleanTabName, MAX_TAB_NAME_LENGTH, tabLabels, type NameLinks } from './lib/tabNames.js';
 import { cleanTitle, isStagingTitle, projectKey, withStagingMark } from './lib/titles.js';
 import { GROUP_COLORS, NO_GROUP, type GroupColor, type GroupInfo, type Rule, type TabInfo, type TabName } from './lib/types.js';
-import { attachTip, COLOR_NAMES, h, keepFocus, plural, projectLabel, syncTip } from './ui.js';
+import { attachTip, COLOR_NAMES, h, icon, keepFocus, plural, projectLabel, syncTip } from './ui.js';
 
 const params = new URLSearchParams(location.search);
 const rowView = params.get('view') === 'row';
@@ -367,6 +367,7 @@ async function act(job: () => Promise<unknown>): Promise<void> {
 }
 
 function switchTo(item: ListItem): Promise<void> {
+  closeMenu(); // picking a project puts away the menu that was open
   return act(async () => {
     await send({ type: 'switch', windowId, groupId: item.groupId });
     if (rowView) window.close(); // the row is a quick switcher: done
@@ -663,16 +664,15 @@ function renderList(): void {
   ui.listWaiting = false;
   const next = new Map<string, HTMLElement>();
   const rows: HTMLElement[] = [];
-  const last = data.items.length - 1;
-  data.items.forEach((item, index) => {
+  data.items.forEach((item) => {
     const shortcut = item.number !== null ? (data.shortcuts.get(`project-${item.number}`) ?? '') : '';
     const open = isExpanded(item);
     const menu = ui.menuFor === item.groupId;
     rows.push(keep(next, JSON.stringify(['row', item, shortcut, open, menu, ui.renaming === null]), () => renderItem(item)));
     if (menu) {
       const rules = item.key ? data.rules.filter((r) => projectKey(r.project) === item.key).length : 0;
-      const key = JSON.stringify(['menu', item, index === 0, index === last, ui.renaming, ui.deleting, rules]);
-      rows.push(keep(next, key, () => renderMenu(item, index)));
+      const key = JSON.stringify(['menu', item, ui.renaming, ui.deleting, rules]);
+      rows.push(keep(next, key, () => renderMenu(item)));
     }
     if (open) rows.push(renderTabs(item, next));
   });
@@ -696,10 +696,16 @@ function renderItem(item: ListItem): HTMLLIElement {
       'data-group': String(item.groupId),
       ondragover: (e: DragEvent) => onDragOver(e, item),
       ondrop: (e: DragEvent) => onDrop(e, item),
+      onkeydown: (e: KeyboardEvent) => {
+        // The keyboard's way to reorder: Alt+Up and Alt+Down on a project.
+        if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+        e.preventDefault();
+        moveBy(item, e.key === 'ArrowUp' ? -1 : 1);
+      },
     },
     h('span', {
       class: 'grip',
-      title: 'Drag to change the order (the tab bar follows)',
+      title: 'Drag to change the order (the tab bar follows). From the keyboard: Alt+Up, Alt+Down',
       draggable: ui.renaming === null,
       ondragstart: (e: DragEvent) => onDragStart(e, item),
       ondragend: onDragEnd,
@@ -873,10 +879,35 @@ function renderTabRename(row: TabRow, state: { tabId: number; value: string }): 
   );
 }
 
+/**
+ * The colours, in one row. When the row is too narrow for all nine, it shows
+ * as many as fit (always with the chosen one) and a + for the others, which
+ * opens them under it until a colour is picked.
+ */
 function swatches(selected: GroupColor, onPick: (color: GroupColor) => void, label: string, disabled = false): HTMLDivElement {
-  return h(
+  const more: HTMLButtonElement = h(
+    'button',
+    {
+      type: 'button',
+      class: 'swatch-more',
+      title: 'More colours',
+      'aria-label': 'More colours',
+      'aria-expanded': 'false',
+      hidden: true,
+      onclick: () => {
+        const open = box.classList.toggle('open');
+        more.setAttribute('aria-expanded', String(open));
+        more.title = open ? 'Fewer colours' : 'More colours';
+        more.setAttribute('aria-label', more.title);
+        more.textContent = open ? '\u2212' : '+';
+        fitSwatches(box);
+      },
+    },
+    '+',
+  );
+  const box: HTMLDivElement = h(
     'div',
-    { class: 'swatches', role: 'group', 'aria-label': label },
+    { class: 'swatches fit', role: 'group', 'aria-label': label },
     ...GROUP_COLORS.map((color) =>
       h('button', {
         type: 'button',
@@ -889,8 +920,55 @@ function swatches(selected: GroupColor, onPick: (color: GroupColor) => void, lab
         onclick: () => onPick(color),
       }),
     ),
+    more,
   );
+  swatchWatcher.observe(box);
+  return box;
 }
+
+const SWATCH_SIZE = 22;
+const SWATCH_GAP = 6;
+/** The room the chosen colour's ring needs around a row that hides what does not fit. */
+const SWATCH_RING = 3;
+
+/** Shows as many colours as the row has room for: the rest wait behind the +. */
+function fitSwatches(box: HTMLElement): void {
+  const colors = [...box.querySelectorAll<HTMLButtonElement>('.swatch')];
+  const more = box.querySelector<HTMLButtonElement>('.swatch-more');
+  if (!more) return;
+  const room = box.clientWidth - 2 * SWATCH_RING;
+  if (room <= 0) return; // not drawn yet, or hidden: measured when it shows
+  if (box.classList.contains('open')) {
+    for (const c of colors) c.hidden = false;
+    more.hidden = false;
+    return;
+  }
+  const slots = Math.floor((room + SWATCH_GAP) / (SWATCH_SIZE + SWATCH_GAP));
+  if (slots >= colors.length) {
+    for (const c of colors) c.hidden = false;
+    more.hidden = true;
+    return;
+  }
+  const shown = Math.max(1, slots - 1);
+  colors.forEach((c, i) => (c.hidden = i >= shown));
+  const chosen = colors.findIndex((c) => c.getAttribute('aria-pressed') === 'true');
+  if (chosen >= shown) {
+    const last = colors[shown - 1];
+    const pick = colors[chosen];
+    if (last) last.hidden = true;
+    if (pick) pick.hidden = false;
+  }
+  more.hidden = false;
+}
+
+/** One watcher for every colour row: a row fits itself again when its width changes, and stops being watched when it goes. */
+const swatchWatcher = new ResizeObserver((entries) => {
+  for (const entry of entries) {
+    const box = entry.target as HTMLElement;
+    if (!box.isConnected) swatchWatcher.unobserve(box);
+    else fitSwatches(box);
+  }
+});
 
 function stagingToggle(on: boolean, onChange: (on: boolean) => void): HTMLLabelElement {
   return h(
@@ -905,25 +983,39 @@ function stagingToggle(on: boolean, onChange: (on: boolean) => void): HTMLLabelE
   );
 }
 
-function renderMenu(item: ListItem, index: number): HTMLLIElement {
+/**
+ * A project's menu: one row of colours and two icons, rename and delete, which
+ * share the colours' row when there is room and take a second row when not.
+ * The order is changed by dragging the grip (or Alt+Up, Alt+Down).
+ */
+function renderMenu(item: ListItem): HTMLLIElement {
   if (ui.renaming?.groupId === item.groupId) return renderRename(item, ui.renaming);
   if (ui.deleting?.groupId === item.groupId) return renderDelete(item, ui.deleting);
   const name = displayName(item);
+  const renameLabel = item.title ? 'Rename' : 'Name it';
   return h(
     'li',
     { class: 'menu', 'data-color': item.color },
     swatches(item.color, (color) => void act(() => send({ type: 'recolor', groupId: item.groupId, color })), `Colour of ${name}`),
     h(
       'div',
-      { class: 'menu-actions' },
-      h('button', { type: 'button', onclick: () => startRename(item) }, item.title ? 'Rename' : 'Name it'),
-      h('button', { type: 'button', disabled: index === 0, onclick: () => moveBy(item, -1) }, 'Move up'),
+      { class: 'menu-icons' },
       h(
         'button',
-        { type: 'button', disabled: index === data.items.length - 1, onclick: () => moveBy(item, 1) },
-        'Move down',
+        { type: 'button', class: 'icon-btn', title: renameLabel, 'aria-label': renameLabel, onclick: () => startRename(item) },
+        icon('edit'),
       ),
-      h('button', { type: 'button', class: 'danger', onclick: () => startDelete(item) }, 'Delete'),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'icon-btn danger',
+          title: 'Delete the project (its tabs stay open)',
+          'aria-label': 'Delete',
+          onclick: () => startDelete(item),
+        },
+        icon('delete'),
+      ),
     ),
   );
 }
@@ -951,7 +1043,7 @@ function renderRename(item: ListItem, state: { groupId: number; value: string })
   };
   return h(
     'li',
-    { class: 'menu', 'data-color': item.color },
+    { class: 'menu form', 'data-color': item.color },
     h('input', {
       type: 'text',
       class: 'text',
@@ -997,7 +1089,7 @@ function renderDelete(item: ListItem, state: { groupId: number; removeRules: boo
   const tabsLine = item.tabCount === 1 ? 'Its tab stays open.' : `All ${item.tabCount} tabs stay open.`;
   return h(
     'li',
-    { class: 'menu', 'data-color': item.color },
+    { class: 'menu form', 'data-color': item.color },
     h('p', { class: 'confirm' }, `Delete the project “${name}”? ${tabsLine} Only the group goes away.`),
     rules > 0
       ? h(
@@ -1146,6 +1238,25 @@ function renderCreate(): void {
 // ---------------------------------------------------------------- start
 
 function wireEvents(): void {
+  // A menu stays open only while the owner works in it. A click anywhere else closes it;
+  // on another project's ⋯ that is all it does (a second click opens that one).
+  document.addEventListener(
+    'click',
+    (e) => {
+      if (ui.menuFor === null) return;
+      const target = e.target instanceof Element ? e.target : null;
+      if (!target || target.closest('.menu')) return;
+      const more = target.closest('.more');
+      if (more && target.closest('.row')?.classList.contains('menu-open')) return; // its own ⋯ closes it
+      closeMenu();
+      render();
+      if (more) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+    true,
+  );
   // The window's layout changed (only this window's events count): read it again.
   const mine = (id: number) => id === windowId;
   chrome.tabs.onCreated.addListener(onTabCreated);

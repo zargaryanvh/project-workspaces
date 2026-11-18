@@ -8,6 +8,8 @@ import {
   onlyOpen,
   openSidePanel,
   panelClick,
+  panelKey,
+  panelMenu,
   panelRows,
   panelText,
   panelType,
@@ -295,9 +297,23 @@ test.describe.serial('Project workspaces in a real browser', () => {
       'red remembered',
     );
 
-    // The list and the tab bar keep one order: moving in the list moves the group in the tab bar...
+    // The menu (still open from the colour change): one row of colours and two icons, no Move up or
+    // Move down (the grip and Alt+Up, Alt+Down do that).
+    const menu = await until(() => panelMenu(driver), (m) => m?.project === 'Admin', "Admin's menu open");
+    expect(menu?.icons).toEqual(['Rename', 'Delete']);
+    expect(menu?.texts.some((t) => /Move/.test(t))).toBe(false);
+    // Another project's ⋯ only closes the open menu; a second click opens that one.
     await panelClick(driver, { kind: 'more', title: 'Web' });
-    await panelClick(driver, { kind: 'button', text: 'Move up', scope: '#list .menu' });
+    await until(() => panelMenu(driver), (m) => m === null, 'the menu closed, and no other one opened');
+    await panelClick(driver, { kind: 'more', title: 'Web' });
+    await until(() => panelMenu(driver), (m) => m?.project === 'Web' && m.menus === 1, "Web's menu open");
+    // Picking a project closes the menu too.
+    await panelClick(driver, { kind: 'project', title: 'Admin' });
+    await until(() => panelMenu(driver), (m) => m === null, 'the menu closed by picking a project');
+    await until(state, (s) => onlyOpen(s, 'Admin'), 'and Admin opened');
+
+    // The list and the tab bar keep one order: moving in the list moves the group in the tab bar...
+    await panelKey(driver, 'Web', 'ArrowUp', true);
     const moved = await until(state, (s) => tabBarOrder(s)[0] === 'Web', 'Web first in the tab bar');
     await until(
       () => panelRows(driver),

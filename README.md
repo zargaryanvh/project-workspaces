@@ -16,12 +16,12 @@ Private by design: no network requests, no analytics, no code from outside. See 
 
 ![After: only Mail open, the other projects folded](docs/tour-after.png)
 
-**Change a project** with **⋯**: colour, rename, move up or down, delete (deleting keeps every tab open). Drag the dots on the left to reorder; the tab bar follows. The list also fits a narrow panel.
+**Change a project** with **⋯**: a row of colours, then ✎ to rename and the bin to delete (deleting keeps every tab open). In a narrow list the colours that do not fit wait behind a **+**, so the menu never takes more than two lines. Clicking anywhere else closes it. Drag the dots on the left to reorder (or press Alt+Up and Alt+Down); the tab bar follows.
 
 <table>
   <tr>
-    <td><img src="docs/tour-menu.png" width="320" alt="The project menu: colours, rename, move, delete"></td>
-    <td><img src="docs/tour-narrow.png" width="150" alt="The list in a narrow side panel"></td>
+    <td><img src="docs/tour-menu.png" width="320" alt="The project menu: a row of colours, rename and delete"></td>
+    <td><img src="docs/tour-narrow.png" width="150" alt="The menu in a narrow list: the colours that fit and a +, then the icons"></td>
   </tr>
 </table>
 
@@ -82,7 +82,7 @@ Then load the `dist` folder as above. After a change, run `npm run build` again 
 1. Put the tabs of each project in a tab group and give it a name, or select tabs and click **New project** at the bottom of the list.
 2. Click the extension's button. The list opens in the side panel.
 3. Click a project, or press its key. Its tabs show; the other groups fold.
-4. Click **⋯** next to a project to rename it, change its colour, move it, or delete it. Deleting only removes the group; every tab stays open.
+4. Click **⋯** next to a project to change its colour, rename it (✎) or delete it (the bin). Deleting only removes the group; every tab stays open. To change the order, drag the dots on the left, or press Alt+Up and Alt+Down on a project.
 5. Click the arrow at the left of a project to see its tabs. Point at a tab: **✎** gives it a name of your own (leave the name empty to show the page title again), **✕** closes it. Drag a tab to move it inside its project.
 
 ## Settings

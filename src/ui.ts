@@ -121,3 +121,14 @@ export function attachTip(anchor: HTMLElement, text: string): void {
   anchor.addEventListener('mouseleave', hideTip);
   anchor.addEventListener('blur', hideTip);
 }
+
+/**
+ * A copy of an icon the page keeps as <template id="icon-NAME">: SVG written
+ * in the page needs no namespace address, so the source stays free of web
+ * addresses (test/unit/privacy.test.ts). The button carries the words.
+ */
+export function icon(name: string): Node {
+  const template = document.getElementById(`icon-${name}`);
+  const svg = template instanceof HTMLTemplateElement ? template.content.firstElementChild : null;
+  return svg ? svg.cloneNode(true) : document.createTextNode('');
+}

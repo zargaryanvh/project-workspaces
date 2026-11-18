@@ -395,8 +395,9 @@ export function panelClick(driver: Page, target: PanelTarget): Promise<void> {
         }
         case 'button':
           return (
+            // A button by its words, or an icon button by its label.
             [...doc.querySelectorAll<HTMLButtonElement>(`${target.scope} button`)].find(
-              (b) => b.textContent?.trim() === target.text && !b.disabled,
+              (b) => (b.textContent?.trim() === target.text || b.getAttribute('aria-label') === target.text) && !b.disabled,
             ) ?? null
           );
         case 'swatch':
@@ -419,6 +420,50 @@ export function panelClick(driver: Page, target: PanelTarget): Promise<void> {
 }
 
 /** Types into a side panel text field (rename or new project). */
+/** Presses a key on a project's row in the side panel, as if the row had the keyboard focus. */
+export function panelKey(driver: Page, title: string, key: string, altKey = false): Promise<void> {
+  return driver.evaluate(
+    async ({ title, key, altKey }) => {
+      const end = Date.now() + 5000;
+      for (;;) {
+        const view = chrome.extension.getViews().find((w) => w.location.pathname.endsWith('/panel.html'));
+        const row = view
+          ? [...view.document.querySelectorAll<HTMLElement>('#list .row')].find(
+              (r) => [r.querySelector('.dot.emoji')?.textContent, r.querySelector('.name')?.textContent].filter(Boolean).join(' ') === title,
+            )
+          : undefined;
+        const main = row?.querySelector<HTMLElement>('.main');
+        if (main && view) {
+          const PanelKeyboardEvent = (view as unknown as { KeyboardEvent: typeof KeyboardEvent }).KeyboardEvent;
+          main.dispatchEvent(new PanelKeyboardEvent('keydown', { key, altKey, bubbles: true, cancelable: true }));
+          return;
+        }
+        if (Date.now() > end) throw new Error(`No project ${title} in the side panel`);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    },
+    { title, key, altKey },
+  );
+}
+
+/** The side panel's open project menu: whose it is, and what it shows. */
+export function panelMenu(driver: Page): Promise<{ project: string; menus: number; icons: string[]; texts: string[] } | null> {
+  return driver.evaluate(() => {
+    const view = chrome.extension.getViews().find((w) => w.location.pathname.endsWith('/panel.html'));
+    if (!view) return null;
+    const doc = view.document;
+    const row = doc.querySelector<HTMLElement>('#list .row.menu-open');
+    const menu = doc.querySelector<HTMLElement>('#list .menu');
+    if (!row && !menu) return null;
+    return {
+      project: row ? [row.querySelector('.dot.emoji')?.textContent, row.querySelector('.name')?.textContent].filter(Boolean).join(' ') : '',
+      menus: doc.querySelectorAll('#list .menu').length,
+      icons: [...(menu?.querySelectorAll<HTMLElement>('.menu-icons button') ?? [])].map((b) => b.getAttribute('aria-label') ?? ''),
+      texts: [...(menu?.querySelectorAll<HTMLElement>('button') ?? [])].map((b) => b.textContent?.trim() ?? '').filter(Boolean),
+    };
+  });
+}
+
 export function panelType(driver: Page, focusKey: string, value: string): Promise<void> {
   return driver.evaluate(
     async ({ focusKey, value }) => {
