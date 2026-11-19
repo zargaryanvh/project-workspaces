@@ -6,6 +6,7 @@ Project workspaces runs entirely in your browser. It never connects to the inter
 
 - **Tab addresses and titles**, to match your project addresses, to warn when a site is already open, and to show your tabs in the tab lists and on the warning page.
 - **Tab groups** (name, colour, folded or open), because each group is a project.
+- **Window positions and sizes**, only when you use the narrow project window, to keep it beside its Brave window.
 
 ## What it keeps
 
@@ -15,7 +16,8 @@ All of it in your browser profile, through the browser's own extension storage:
 - for each project, the tab you used last (its address), so switching back lands on it;
 - for each window, which project was open, so a reopened window gets it back;
 - the names you give tabs, each with two addresses (without the part after `?` or `#`) that find its tab again after a restart, and which projects have their tab list open;
-- while the browser runs, a little bookkeeping about tabs (for example, which tabs you placed in a group yourself). This is cleared when the browser closes.
+- the width of the narrow project window;
+- while the browser runs, a little bookkeeping about tabs and windows (for example, which tabs you placed in a group yourself, and which project window belongs to which Brave window). This is cleared when the browser closes.
 
 Removing the extension removes all of it.
 

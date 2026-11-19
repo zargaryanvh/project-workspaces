@@ -12,12 +12,12 @@ test.describe('titles', () => {
     expect(withStagingMark('App staging', true)).toBe('🟠 App staging');
     expect(withStagingMark('🟠 App staging', true)).toBe('🟠 App staging');
     expect(withStagingMark('🟠App staging', false)).toBe('App staging');
-    expect(isStagingTitle('🟠 Web staging')).toBe(true);
-    expect(isStagingTitle('Web staging')).toBe(false);
+    expect(isStagingTitle('🟠 Blog staging')).toBe(true);
+    expect(isStagingTitle('Blog staging')).toBe(false);
   });
 
   test('a leading emoji becomes the icon, so lists show it once', () => {
-    expect(leadingEmoji('🔵 Admin')).toEqual({ icon: '🔵', rest: 'Admin' });
+    expect(leadingEmoji('🔵 Office')).toEqual({ icon: '🔵', rest: 'Office' });
     expect(leadingEmoji('  🟠   App   staging ')).toEqual({ icon: '🟠', rest: 'App staging' });
     expect(leadingEmoji('🟠App staging')).toEqual({ icon: '🟠', rest: 'App staging' });
     expect(leadingEmoji('❤️ Family')).toEqual({ icon: '❤️', rest: 'Family' });
@@ -31,7 +31,7 @@ test.describe('titles', () => {
 
   test('staging gets orange; other projects get a steady colour that is never orange or grey', () => {
     expect(defaultColorFor('🟠 Anything')).toBe('orange');
-    for (const title of ['Admin', 'App', 'Web', 'Platform', 'Backend', 'Mail', 'Payments', 'doc', 'Design', 'Research']) {
+    for (const title of ['Office', 'App', 'Blog', 'Studio', 'Notes', 'Mail', 'Bills', 'doc', 'Design', 'Research']) {
       const color = defaultColorFor(title);
       expect(['orange', 'grey']).not.toContain(color);
       expect(defaultColorFor(title.toUpperCase())).toBe(color);
@@ -74,15 +74,15 @@ test.describe('stored data', () => {
 
   test('bad entries are dropped, repeated names kept once, unknown colours become grey', () => {
     const state = sanitizeLocal({
-      projects: [{ title: 'Admin', color: 'blue' }, { title: 'admin', color: 'red' }, { title: 'X', color: 'gold' }, { nope: 1 }],
-      lastActive: { admin: { tabId: 4, url: 'https://a' }, bad: { tabId: 'x' } },
+      projects: [{ title: 'Office', color: 'blue' }, { title: 'office', color: 'red' }, { title: 'X', color: 'gold' }, { nope: 1 }],
+      lastActive: { office: { tabId: 4, url: 'https://a' }, bad: { tabId: 'x' } },
       settings: { follow: false, surface: 'somewhere' },
     });
     expect(state.projects).toEqual([
-      { title: 'Admin', color: 'blue' },
+      { title: 'Office', color: 'blue' },
       { title: 'X', color: 'grey' },
     ]);
-    expect(state.lastActive).toEqual({ admin: { tabId: 4, url: 'https://a' } });
+    expect(state.lastActive).toEqual({ office: { tabId: 4, url: 'https://a' } });
     expect(state.settings).toEqual({ follow: false, surface: 'sidePanel', duplicateCheck: true });
   });
 
@@ -96,27 +96,27 @@ test.describe('stored data', () => {
         { id: 'c', name: 'Bare' },
         'junk',
       ],
-      expanded: ['admin', 'admin', '', 7, 'web'],
+      expanded: ['office', 'office', '', 7, 'blog'],
     });
     expect(state.tabNames).toEqual([
       { id: 'a', name: 'Work account', home: 'https://m.example/u/1/', last: 'https://m.example/u/1/x', seen: 5 },
       { id: 'c', name: 'Bare', home: '', last: '', seen: 0 },
     ]);
-    expect(state.expanded).toEqual(['admin', 'web']);
+    expect(state.expanded).toEqual(['office', 'blog']);
     expect(sanitizeNameLinks({ '12': 'a', x: 'b', '13': 4, '14': '' })).toEqual({ '12': 'a' });
     expect(sanitizeNameLinks('junk')).toEqual({});
   });
 
   test('rules are tidied: hosts normalised, unusable rules dropped, ids unique', () => {
     const rules = sanitizeRules([
-      { id: 'a', host: 'https://Admin.Example.com/x', project: ' Admin ', enabled: true },
+      { id: 'a', host: 'https://Office.Example.com/x', project: ' Office ', enabled: true },
       { id: 'a', host: 'app.example.com', project: 'App' },
       { id: 'b', host: 'a*.example.com', project: 'Wild' },
-      { id: 'c', host: 'web.example.com', project: '   ' },
+      { id: 'c', host: 'blog.example.com', project: '   ' },
       { id: 'd', host: 'off.example.com', project: 'Off', enabled: false },
     ]);
     expect(rules).toEqual([
-      { id: 'a', host: 'admin.example.com', project: 'Admin', enabled: true },
+      { id: 'a', host: 'office.example.com', project: 'Office', enabled: true },
       { id: 'a-x', host: 'app.example.com', project: 'App', enabled: true },
       { id: 'd', host: 'off.example.com', project: 'Off', enabled: false },
     ]);

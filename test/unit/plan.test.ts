@@ -21,9 +21,9 @@ const t = (id: number, groupId: number, index: number, extra: Partial<TabInfo> =
   ...extra,
 });
 
-// Window 1: Admin (open, has the active tab), Web (folded), Staging (open), one loose tab.
+// Window 1: Office (open, has the active tab), Blog (folded), Staging (open), one loose tab.
 // Window 2 has its own open group that must never be touched.
-const groups: GroupInfo[] = [g(10, 'Admin'), g(20, 'Web', true), g(30, '🟠 App staging'), g(40, 'Other', false, 2)];
+const groups: GroupInfo[] = [g(10, 'Office'), g(20, 'Blog', true), g(30, '🟠 App staging'), g(40, 'Other', false, 2)];
 const tabs: TabInfo[] = [
   t(1, 10, 0, { active: true }),
   t(2, 10, 1),
@@ -83,7 +83,7 @@ test('keeps the active tab when it is already in the project', () => {
 });
 
 test('nothing to do when the project is already the only open one', () => {
-  const settled = [g(10, 'Admin'), g(20, 'Web', true), g(30, 'Staging', true)];
+  const settled = [g(10, 'Office'), g(20, 'Blog', true), g(30, 'Staging', true)];
   const plan = planSwitch({ windowId: W, groupId: 10, groups: settled, tabs });
   expect(plan && isEmptyPlan(plan)).toBe(true);
 });

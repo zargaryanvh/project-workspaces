@@ -53,7 +53,7 @@ Private by design: no network requests, no analytics, no code from outside. See 
 - **"Already open" warning:** open a project address in a new tab while that site is already open, and the new tab offers to take you to the tab you have (or open it anyway).
 - **Reopened windows** (Ctrl+Shift+T) and browser restarts get back the project that was open, on the tab you used last.
 - **Staging projects:** a name that starts with 🟠 gets the orange group colour.
-- **Your own icons:** a name that starts with an emoji ("🔵 Admin", "🛒 Shopping") shows that emoji in the list instead of the colour dot.
+- **Your own icons:** a name that starts with an emoji ("🔵 Work", "🛒 Shopping") shows that emoji in the list instead of the colour dot.
 - **Hands off your tabs:** it never reloads tabs or puts them to sleep. It closes a tab only when you ask: ✕ on a tab in the list, or "Close this tab" on the warning.
 - **Works with Brave's vertical tabs:** each project becomes one row there, as narrow as you like.
 - **Narrow project window:** the whole list in a small window of its own, attached to the side of its Brave window, narrower than the side panel can be (300 px to start, drag to change). Each Brave window has its own, and it stays attached: move, resize, maximize or minimize Brave and the list goes along. Switch back to the side panel at any time.

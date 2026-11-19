@@ -6,13 +6,13 @@ const rule = (id: string, host: string, project: string, enabled = true): Rule =
 
 test('rules are grouped into one card per project, in the order projects first appear', () => {
   const cards = cardsFromRules([
-    rule('1', 'admin.example.com', 'Admin'),
-    rule('2', 'example.com', 'Web'),
-    rule('3', 'localhost:5180', 'admin'),
-    rule('4', 'localhost:5174', 'Web', false),
+    rule('1', 'office.example.com', 'Office'),
+    rule('2', 'example.com', 'Blog'),
+    rule('3', 'localhost:5180', 'office'),
+    rule('4', 'localhost:5174', 'Blog', false),
   ]);
-  expect(cards.map((c) => c.project)).toEqual(['Admin', 'Web']);
-  expect(cards[0]?.rows.map((r) => r.host)).toEqual(['admin.example.com', 'localhost:5180']);
+  expect(cards.map((c) => c.project)).toEqual(['Office', 'Blog']);
+  expect(cards[0]?.rows.map((r) => r.host)).toEqual(['office.example.com', 'localhost:5180']);
   expect(cards[1]?.rows.map((r) => [r.host, r.enabled])).toEqual([
     ['example.com', true],
     ['localhost:5174', false],
@@ -23,10 +23,10 @@ test('cards flatten back card by card; unusable addresses and unnamed cards are 
   const cards: ProjectCard[] = [
     {
       id: 'a',
-      project: ' Payments ',
+      project: ' Bills ',
       rows: [
-        { id: 'r1', host: 'https://Vendors.Payments.com/overview', enabled: true },
-        { id: 'r2', host: '*.payments.com', enabled: true },
+        { id: 'r1', host: 'https://Vendors.Bills.com/overview', enabled: true },
+        { id: 'r2', host: '*.bills.com', enabled: true },
         { id: 'r3', host: 'not a host', enabled: true },
         { id: 'r4', host: '', enabled: true },
       ],
@@ -34,21 +34,21 @@ test('cards flatten back card by card; unusable addresses and unnamed cards are 
     { id: 'b', project: '', rows: [{ id: 'r5', host: 'x.example.com', enabled: true }] },
   ];
   expect(rulesFromCards(cards)).toEqual([
-    rule('r1', 'vendors.payments.com', 'Payments'),
-    rule('r2', '*.payments.com', 'Payments'),
+    rule('r1', 'vendors.bills.com', 'Bills'),
+    rule('r2', '*.bills.com', 'Bills'),
   ]);
 });
 
 test('a round trip keeps the rules as they were', () => {
-  const rules = [rule('1', 'admin.example.com', 'Admin'), rule('2', 'example.com', 'Web'), rule('3', 'localhost:5174', 'Web')];
+  const rules = [rule('1', 'office.example.com', 'Office'), rule('2', 'example.com', 'Blog'), rule('3', 'localhost:5174', 'Blog')];
   expect(rulesFromCards(cardsFromRules(rules))).toEqual(rules);
 });
 
 test('sharedHosts finds an address used by two projects', () => {
   const cards = cardsFromRules([
-    rule('1', 'example.com', 'Web'),
+    rule('1', 'example.com', 'Blog'),
     rule('2', 'example.com', 'Shop'),
-    rule('3', 'admin.example.com', 'Admin'),
+    rule('3', 'office.example.com', 'Office'),
   ]);
-  expect([...sharedHosts(cards)]).toEqual([['example.com', ['Web', 'Shop']]]);
+  expect([...sharedHosts(cards)]).toEqual([['example.com', ['Blog', 'Shop']]]);
 });

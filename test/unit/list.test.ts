@@ -15,7 +15,7 @@ const t = (id: number, groupId: number, index: number, active = false, windowId 
 });
 
 test('the list is in tab bar order, with counts, the current project and numbers 1 to 9', () => {
-  const groups = [g(1, 'Admin'), g(2, ''), g(3, 'Mail'), g(4, 'Web'), g(5, 'Payments'), g(6, 'Elsewhere', 2)];
+  const groups = [g(1, 'Office'), g(2, ''), g(3, 'Mail'), g(4, 'Blog'), g(5, 'Bills'), g(6, 'Elsewhere', 2)];
   const tabs = [
     t(41, 4, 0),
     t(11, 1, 1),
@@ -27,9 +27,9 @@ test('the list is in tab bar order, with counts, the current project and numbers
     t(71, -1, 6),
   ];
   const list = buildList(groups, tabs, W);
-  expect(list.map((i) => i.title)).toEqual(['Web', 'Admin', 'Payments', '', 'Mail']);
+  expect(list.map((i) => i.title)).toEqual(['Blog', 'Office', 'Bills', '', 'Mail']);
   expect(list.map((i) => i.number)).toEqual([1, 2, 3, 4, 5]);
-  expect(list.find((i) => i.title === 'Admin')).toMatchObject({ tabCount: 2, current: true });
+  expect(list.find((i) => i.title === 'Office')).toMatchObject({ tabCount: 2, current: true });
   expect(list.filter((i) => i.current)).toHaveLength(1);
 });
 

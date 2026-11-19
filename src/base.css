@@ -68,7 +68,7 @@
   box-sizing: border-box;
 }
 
-/* A name that starts with an emoji ("🔵 Admin") shows it in the colour dot's place. */
+/* A name that starts with an emoji ("🔵 Work") shows it in the colour dot's place. */
 .dot.emoji {
   width: 16px;
   height: auto;

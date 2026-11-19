@@ -4,25 +4,25 @@ import type { Rule } from '../../src/lib/types.js';
 
 const rule = (host: string, project: string, enabled = true): Rule => ({ id: `${host}-${project}`, host, project, enabled });
 const rules: Rule[] = [
-  rule('admin.example.com', 'Admin'),
+  rule('office.example.com', 'Office'),
   rule('app.example.com', 'App'),
   rule('staging.example.com', '🟠 App staging'),
-  rule('platform.example.com', 'Platform'),
-  rule('staging-platform.example.com', '🟠 Platform staging'),
-  rule('example.com', 'Web'),
-  rule('staging-web.example.com', '🟠 Web staging'),
+  rule('studio.example.com', 'Studio'),
+  rule('staging-studio.example.com', '🟠 Studio staging'),
+  rule('example.com', 'Blog'),
+  rule('staging-blog.example.com', '🟠 Blog staging'),
 ];
 
 test.describe('matchRule', () => {
   test('sends each host to its project', () => {
     const cases: Array<[string, string]> = [
-      ['https://admin.example.com/issues', 'Admin'],
+      ['https://office.example.com/issues', 'Office'],
       ['https://app.example.com/', 'App'],
       ['https://staging.example.com/login', '🟠 App staging'],
-      ['https://platform.example.com/cabinets', 'Platform'],
-      ['https://staging-platform.example.com/', '🟠 Platform staging'],
-      ['https://example.com/pricing', 'Web'],
-      ['https://staging-web.example.com/', '🟠 Web staging'],
+      ['https://studio.example.com/cabinets', 'Studio'],
+      ['https://staging-studio.example.com/', '🟠 Studio staging'],
+      ['https://example.com/pricing', 'Blog'],
+      ['https://staging-blog.example.com/', '🟠 Blog staging'],
     ];
     for (const [url, project] of cases) expect(matchRule(url, rules)?.project, url).toBe(project);
   });
@@ -31,7 +31,7 @@ test.describe('matchRule', () => {
     for (const url of [
       'https://www.example.com/',
       'https://docs.example.com/',
-      'https://admin.example.com.example.org/',
+      'https://office.example.com.example.org/',
       'https://notexample.com/',
       'https://example.com.au/',
       'https://x.staging.example.com/',
@@ -41,13 +41,13 @@ test.describe('matchRule', () => {
   });
 
   test('ignores case, a trailing dot, the path, the query and the port', () => {
-    expect(matchRule('HTTPS://Admin.Example.com./a/b?c=d#e', rules)?.project).toBe('Admin');
+    expect(matchRule('HTTPS://Office.Example.com./a/b?c=d#e', rules)?.project).toBe('Office');
     expect(matchRule('http://staging.example.com:5180/x', rules)?.project).toBe('🟠 App staging');
   });
 
   test('a rule with a port matches only that port', () => {
-    const local = [rule('localhost:5180', 'Admin local')];
-    expect(matchRule('http://localhost:5180/', local)?.project).toBe('Admin local');
+    const local = [rule('localhost:5180', 'Office local')];
+    expect(matchRule('http://localhost:5180/', local)?.project).toBe('Office local');
     expect(matchRule('http://localhost:5173/', local)).toBeNull();
     expect(matchRule('http://localhost/', local)).toBeNull();
   });
@@ -67,43 +67,43 @@ test.describe('matchRule', () => {
 
 test.describe('normalizeRuleHost', () => {
   test('accepts a host or a full address and keeps only the host', () => {
-    expect(normalizeRuleHost('admin.example.com')).toBe('admin.example.com');
-    expect(normalizeRuleHost('  Admin.Example.com. ')).toBe('admin.example.com');
-    expect(normalizeRuleHost('https://admin.example.com/issues?x=1')).toBe('admin.example.com');
+    expect(normalizeRuleHost('office.example.com')).toBe('office.example.com');
+    expect(normalizeRuleHost('  Office.Example.com. ')).toBe('office.example.com');
+    expect(normalizeRuleHost('https://office.example.com/issues?x=1')).toBe('office.example.com');
     expect(normalizeRuleHost('localhost:5180')).toBe('localhost:5180');
     expect(normalizeRuleHost('127.0.0.1:8080')).toBe('127.0.0.1:8080');
   });
 
   test('refuses spaces, single words, stray stars and non-web addresses', () => {
-    for (const input of ['', '   ', 'admin example.com', 'intranet', 'ftp://files.example.com', 'a*.example.com', '*', '*.', '*.localhost']) {
+    for (const input of ['', '   ', 'office example.com', 'intranet', 'ftp://files.example.com', 'a*.example.com', '*', '*.', '*.localhost']) {
       expect(normalizeRuleHost(input), input).toBeNull();
     }
   });
 
   test('accepts *. for a domain and all its subdomains', () => {
-    expect(normalizeRuleHost('*.Payments.com')).toBe('*.payments.com');
-    expect(normalizeRuleHost(' *.payments.com ')).toBe('*.payments.com');
+    expect(normalizeRuleHost('*.Bills.com')).toBe('*.bills.com');
+    expect(normalizeRuleHost(' *.bills.com ')).toBe('*.bills.com');
   });
 });
 
 test.describe('*. addresses', () => {
   const list = [
-    rule('*.payments.com', 'Payments'),
+    rule('*.bills.com', 'Bills'),
     rule('*.example.com', 'Example other'),
-    rule('admin.example.com', 'Admin'),
+    rule('office.example.com', 'Office'),
     rule('*.staging.example.com', 'Staging extras'),
   ];
 
   test('cover the domain itself and every subdomain', () => {
-    for (const url of ['https://payments.com/', 'https://vendors.payments.com/overview', 'https://login.payments.com/', 'https://a.b.payments.com/']) {
-      expect(matchRule(url, list)?.project, url).toBe('Payments');
+    for (const url of ['https://bills.com/', 'https://vendors.bills.com/overview', 'https://login.bills.com/', 'https://a.b.bills.com/']) {
+      expect(matchRule(url, list)?.project, url).toBe('Bills');
     }
     expect(matchRule('https://notpayments.com/', list)).toBeNull();
-    expect(matchRule('https://payments.com.evil.org/', list)).toBeNull();
+    expect(matchRule('https://bills.com.evil.org/', list)).toBeNull();
   });
 
   test('an exact address wins over a *. one, and the longest *. wins among them', () => {
-    expect(matchRule('https://admin.example.com/x', list)?.project).toBe('Admin');
+    expect(matchRule('https://office.example.com/x', list)?.project).toBe('Office');
     expect(matchRule('https://docs.example.com/', list)?.project).toBe('Example other');
     expect(matchRule('https://x.staging.example.com/', list)?.project).toBe('Staging extras');
   });

@@ -21,7 +21,7 @@ export function isStagingTitle(title: string): boolean {
 const LEADING_EMOJI = /^(\p{Extended_Pictographic}(?:\p{Emoji_Modifier}|️)?(?:‍\p{Extended_Pictographic}(?:\p{Emoji_Modifier}|️)?)*)\s*/u;
 
 /**
- * A name that starts with an emoji ("🔵 Admin", "🟠 App staging") uses it as
+ * A name that starts with an emoji ("🔵 Work", "🟠 App staging") uses it as
  * its icon: lists show the emoji in place of the colour dot, and the rest as
  * the name, so the circle is not shown twice. Null when there is no leading
  * emoji, or when the emoji is the whole name.

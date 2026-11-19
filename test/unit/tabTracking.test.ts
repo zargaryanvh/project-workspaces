@@ -23,8 +23,8 @@ test.describe('trackNewTab', () => {
   });
 
   test('a tab Brave restores already has its address', () => {
-    expect(trackNewTab({ url: 'https://admin.example.com/x', groupId: -1, hasOpener: false, now: NOW }).host).toBe(
-      'admin.example.com',
+    expect(trackNewTab({ url: 'https://office.example.com/x', groupId: -1, hasOpener: false, now: NOW }).host).toBe(
+      'office.example.com',
     );
   });
 });
@@ -41,7 +41,7 @@ test.describe('classifyGroupChange', () => {
   });
 
   test('a tab already showing a page is grouped by the owner, however new it is', () => {
-    const loaded: TabTrack = { ...linked, host: 'web.example.com' };
+    const loaded: TabTrack = { ...linked, host: 'blog.example.com' };
     expect(classifyGroupChange({ byExtension: false, track: loaded, newGroupId: 3, now: NOW + 100 })).toBe('manual');
   });
 

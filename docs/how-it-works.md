@@ -28,9 +28,10 @@ A project is a tab group. Group ids change every time the browser restarts, so n
 - `openProjects`: the project that was open in each window, keyed by the window's set of project names;
 - `settings`;
 - `tabNames`: the names given to tabs (see "Tab names" below);
-- `expanded`: the projects whose tab list is open in the side panel.
+- `expanded`: the projects whose tab list is open in the side panel;
+- `projectWindowWidth`: the width new narrow project windows open at.
 
-`chrome.storage.session` keeps bookkeeping that only matters while the browser runs (see "Rules" below), and `tabNameLinks`: which open tab shows which name.
+`chrome.storage.session` keeps bookkeeping that only matters while the browser runs (see "Rules" below, and the open narrow project windows with their Brave windows), and `tabNameLinks`: which open tab shows which name.
 
 ## Switching
 

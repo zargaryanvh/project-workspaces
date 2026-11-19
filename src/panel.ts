@@ -682,7 +682,7 @@ function renderList(): void {
 
 function renderItem(item: ListItem): HTMLLIElement {
   const name = displayName(item);
-  const label = projectLabel(name); // "🔵 Admin" shows its circle once, in the dot's place
+  const label = projectLabel(name); // "🔵 Work" shows its circle once, in the dot's place
   const tabs = plural(item.tabCount, 'tab', 'tabs');
   const shortcut = item.number !== null ? data.shortcuts.get(`project-${item.number}`) : undefined;
   const open = isExpanded(item);
@@ -1191,7 +1191,7 @@ function renderCreate(): void {
       class: 'text',
       value: state.value,
       maxLength: 80,
-      placeholder: 'Name, for example Admin',
+      placeholder: 'Name, for example Work',
       'aria-label': 'Project name',
       'data-focus': 'create',
       oninput: (e: Event) => {

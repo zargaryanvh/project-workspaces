@@ -39,7 +39,7 @@ export interface PageServer {
 }
 
 /**
- * Serves tiny pages on 127.0.0.1. The browser maps admin.example.com and the
+ * Serves tiny pages on 127.0.0.1. The browser maps office.example.com and the
  * other test hosts to it, so nothing leaves the computer. Each page keeps a
  * random id from its load: if it is reloaded, the id changes.
  */
@@ -138,13 +138,13 @@ export async function reopenLastClosed(ctx: BrowserContext, sw: Worker, knownWin
 
 /** The addresses the smoke tests work with. A real install starts with none. */
 export const EXAMPLE_RULES: Array<[string, string]> = [
-  ['admin.example.com', 'Admin'],
+  ['office.example.com', 'Office'],
   ['app.example.com', 'App'],
   ['staging.example.com', '\u{1F7E0} App staging'],
-  ['platform.example.com', 'Platform'],
-  ['staging-platform.example.com', '\u{1F7E0} Platform staging'],
-  ['example.com', 'Web'],
-  ['staging-web.example.com', '\u{1F7E0} Web staging'],
+  ['studio.example.com', 'Studio'],
+  ['staging-studio.example.com', '\u{1F7E0} Studio staging'],
+  ['example.com', 'Blog'],
+  ['staging-blog.example.com', '\u{1F7E0} Blog staging'],
 ];
 
 /** Saves addresses the way the settings page does. */

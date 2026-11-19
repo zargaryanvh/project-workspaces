@@ -3,9 +3,9 @@ import { findAlreadyOpen, sameAddress, type AlreadyOpenInput } from '../../src/l
 import type { Rule, TabInfo } from '../../src/lib/types.js';
 
 const rules: Rule[] = [
-  { id: '1', host: 'example.com', project: 'Web', enabled: true },
-  { id: '2', host: 'localhost:5174', project: 'Web', enabled: true },
-  { id: '3', host: '*.payments.com', project: 'Payments', enabled: true },
+  { id: '1', host: 'example.com', project: 'Blog', enabled: true },
+  { id: '2', host: 'localhost:5174', project: 'Blog', enabled: true },
+  { id: '3', host: '*.bills.com', project: 'Bills', enabled: true },
   { id: '4', host: 'off.example.com', project: 'Off', enabled: false },
 ];
 const tab = (id: number, url: string, windowId = 1, index = id): TabInfo => ({
@@ -22,7 +22,7 @@ const open = [
   tab(2, 'https://example.com/shop', 2),
   tab(3, 'https://example.com/', 1),
   tab(4, 'http://localhost:5174/shop/latch', 1),
-  tab(5, 'https://vendors.payments.com/overview', 1),
+  tab(5, 'https://vendors.bills.com/overview', 1),
   tab(6, 'https://www.google.com/search?q=x', 1),
   tab(7, 'https://off.example.com/', 1),
 ];
@@ -48,8 +48,8 @@ test('another page of the same site warns too', () => {
 test('local addresses and *. addresses count as project addresses; the port matters', () => {
   expect(findAlreadyOpen(input({ url: 'http://localhost:5174/' }))?.map((t) => t.id)).toEqual([4]);
   expect(findAlreadyOpen(input({ url: 'http://localhost:5180/' }))).toBeNull();
-  expect(findAlreadyOpen(input({ url: 'https://vendors.payments.com/' }))?.map((t) => t.id)).toEqual([5]);
-  expect(findAlreadyOpen(input({ url: 'https://login.payments.com/' }))).toBeNull(); // nothing open there
+  expect(findAlreadyOpen(input({ url: 'https://vendors.bills.com/' }))?.map((t) => t.id)).toEqual([5]);
+  expect(findAlreadyOpen(input({ url: 'https://login.bills.com/' }))).toBeNull(); // nothing open there
 });
 
 test('no warning for sites that are not project addresses, or switched off', () => {

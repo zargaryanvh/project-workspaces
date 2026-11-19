@@ -148,7 +148,7 @@ function renderCard(card: ProjectCard): HTMLElement {
     type: 'text',
     class: 'text',
     value: card.project,
-    placeholder: 'Project name, for example Admin',
+    placeholder: 'Project name, for example Work',
     spellcheck: false,
     'aria-label': 'Project name',
     oninput: (e: Event) => {
@@ -292,7 +292,7 @@ function refresh(): void {
     const dot = cardsEl.querySelector<HTMLElement>(`[data-dot="${card.id}"]`);
     if (dot) {
       dot.dataset.color = knownColor(card.project);
-      // The name field already shows a leading emoji ("🔵 Admin"): one circle is enough.
+      // The name field already shows a leading emoji ("🔵 Work"): one circle is enough.
       dot.classList.toggle('covered', leadingEmoji(card.project) !== null);
     }
     const status = cardsEl.querySelector<HTMLElement>(`[data-status="${card.id}"]`);

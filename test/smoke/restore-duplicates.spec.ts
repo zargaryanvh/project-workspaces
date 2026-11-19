@@ -117,8 +117,8 @@ test.describe.serial('Reopened windows and the already-open warning', () => {
     homeTab = await createTab(server.url('example.com', '/home'), true);
     await until(
       () => windowState(sw, mainWindow),
-      (s) => s.groupOf(homeTab) === 'Web' && onlyOpen(s, 'Web'),
-      'example.com/home in Web',
+      (s) => s.groupOf(homeTab) === 'Blog' && onlyOpen(s, 'Blog'),
+      'example.com/home in Blog',
     );
 
     const again = await createTab(server.url('example.com', '/'), true);
@@ -132,7 +132,7 @@ test.describe.serial('Reopened windows and the already-open warning', () => {
     await warning.getByRole('button', { name: 'Close this tab' }).click();
     await until(
       () => windowState(sw, mainWindow),
-      (s) => !s.tabs.some((t) => t.id === again) && s.active?.id === homeTab && onlyOpen(s, 'Web'),
+      (s) => !s.tabs.some((t) => t.id === again) && s.active?.id === homeTab && onlyOpen(s, 'Blog'),
       'the new tab closed, back on example.com/home',
     );
   });
@@ -144,8 +144,8 @@ test.describe.serial('Reopened windows and the already-open warning', () => {
     await warning.getByRole('button', { name: 'Open anyway' }).click();
     await until(
       () => windowState(sw, mainWindow),
-      (s) => (s.tabs.find((t) => t.id === again)?.url ?? '').endsWith('/again') && s.groupOf(again) === 'Web',
-      'example.com/again loaded and in Web',
+      (s) => (s.tabs.find((t) => t.id === again)?.url ?? '').endsWith('/again') && s.groupOf(again) === 'Blog',
+      'example.com/again loaded and in Blog',
     );
     expect(server.hits.get('example.com/again')).toBeGreaterThanOrEqual(1);
   });
